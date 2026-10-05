@@ -2,6 +2,9 @@
 
 import {
   AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
   Check,
   CheckCircle2,
   ChevronLeft,
@@ -15,6 +18,7 @@ import {
   Plus,
   Printer,
   Search,
+  Columns3,
   ShieldAlert,
   X,
 } from "lucide-react";
@@ -30,6 +34,7 @@ const statusOptions = [
   { value: "CONCLUIDO", label: "Concluído" },
   { value: "ARQUIVADA", label: "Arquivada" },
 ] as const;
+const kanbanStatuses = statusOptions.filter(({ value }) => value !== "ARQUIVADA");
 const priorityOptions = [
   { value: "BAIXA", label: "Baixa" },
   { value: "MEDIA", label: "Média" },
@@ -153,7 +158,7 @@ function isOverdue(task: Task) {
     task.status !== "ARQUIVADA";
 }
 
-export function TaskListPage() {
+export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
   const { hasPermission, user } = useAuthPermissions();
   const canCreate = hasPermission("tarefas", "criar");
   const canEdit = hasPermission("tarefas", "editar");
@@ -179,6 +184,7 @@ export function TaskListPage() {
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [form, setForm] = useState<TaskForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [movingTaskIds, setMovingTaskIds] = useState<Set<string>>(() => new Set());
   const portalReady = useSyncExternalStore(
     subscribeToClientReady,
     getClientReady,
@@ -186,16 +192,20 @@ export function TaskListPage() {
   );
 
   const query = useMemo(() => {
-    const params = new URLSearchParams({ pagina: String(page), porPagina: "12" });
+    const params = new URLSearchParams({ pagina: String(page), porPagina: view === "kanban" ? "100" : "12" });
     if (search.trim()) params.set("busca", search.trim());
-    if (statusFilter) params.set("status", statusFilter);
-    if (categoryFilter) params.set("categoria", categoryFilter);
-    if (responsibleFilter) params.set("responsavelId", responsibleFilter);
-    if (unitFilter) params.set("unidadeId", unitFilter);
-    if (dateFrom) params.set("dataDe", dateFrom);
-    if (dateTo) params.set("dataAte", dateTo);
+    if (view === "list") {
+      if (statusFilter) params.set("status", statusFilter);
+      if (categoryFilter) params.set("categoria", categoryFilter);
+      if (responsibleFilter) params.set("responsavelId", responsibleFilter);
+      if (unitFilter) params.set("unidadeId", unitFilter);
+      if (dateFrom) params.set("dataDe", dateFrom);
+      if (dateTo) params.set("dataAte", dateTo);
+    } else {
+      params.set("ocultarArquivadas", "true");
+    }
     return params.toString();
-  }, [page, search, statusFilter, categoryFilter, responsibleFilter, unitFilter, dateFrom, dateTo]);
+  }, [page, search, statusFilter, categoryFilter, responsibleFilter, unitFilter, dateFrom, dateTo, view]);
 
   const loadTasks = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
@@ -312,21 +322,61 @@ export function TaskListPage() {
     setStatusFilter((current) => current === status ? "" : status);
   }
 
+  async function moveTask(task: Task, nextStatus: TaskStatus) {
+    if (!canEdit || task.status === nextStatus || movingTaskIds.has(task.id)) return;
+    const previousStatus = task.status;
+    setError("");
+    setMovingTaskIds((current) => new Set(current).add(task.id));
+    setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: nextStatus } : item));
+    setCounts((current) => ({
+      ...current,
+      [previousStatus]: Math.max(0, current[previousStatus] - 1),
+      [nextStatus]: current[nextStatus] + 1,
+    }));
+    try {
+      const response = await fetch(`/api/tarefas/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const result = await response.json() as { tarefa?: Task; error?: string };
+      if (!response.ok || !result.tarefa) {
+        throw new Error(result.error ?? "Não foi possível mover a tarefa.");
+      }
+      setTasks((current) => current.map((item) => item.id === task.id ? result.tarefa! : item));
+    } catch (moveError) {
+      console.error("Falha ao mover tarefa no quadro:", moveError);
+      setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: previousStatus } : item));
+      setCounts((current) => ({
+        ...current,
+        [previousStatus]: current[previousStatus] + 1,
+        [nextStatus]: Math.max(0, current[nextStatus] - 1),
+      }));
+      setError(moveError instanceof Error ? moveError.message : "Não foi possível mover a tarefa.");
+    } finally {
+      setMovingTaskIds((current) => {
+        const next = new Set(current);
+        next.delete(task.id);
+        return next;
+      });
+    }
+  }
+
   const activeFilters = [statusFilter, categoryFilter, responsibleFilter, unitFilter, dateFrom, dateTo].filter(Boolean).length;
 
   return (
-    <AppFrame section="Todas as Tarefas">
+    <AppFrame section={view === "kanban" ? "Quadro Kanban" : "Todas as Tarefas"}>
       <div className="page-wrap task-page">
         <div className="page-heading task-page-heading">
           <div>
-            <div className="eyebrow"><ListChecks size={15} /> GESTÃO DE TAREFAS</div>
-            <h1>Tarefas</h1>
-            <p>Visão completa de todas as tarefas</p>
+            <div className="eyebrow">{view === "kanban" ? <Columns3 size={15} /> : <ListChecks size={15} />} GESTÃO DE TAREFAS</div>
+            <h1>{view === "kanban" ? "Quadro Kanban" : "Tarefas"}</h1>
+            <p>{view === "kanban" ? "Acompanhe e mova tarefas entre as etapas." : "Visão completa de todas as tarefas"}</p>
           </div>
           <div className="task-heading-actions">
-            <button className="button button-secondary" type="button" onClick={() => window.print()}>
+            {view === "list" && <button className="button button-secondary" type="button" onClick={() => window.print()}>
               <Printer size={17} /> Imprimir Relatório
-            </button>
+            </button>}
             {canCreate && (
               <button className="button button-primary" type="button" onClick={openCreate}>
                 <Plus size={18} /> Nova Tarefa
@@ -338,6 +388,24 @@ export function TaskListPage() {
         {notice && <div className="feedback success-feedback" role="status"><CheckCircle2 size={17} />{notice}<button type="button" aria-label="Fechar aviso" onClick={() => setNotice("")}><X size={16} /></button></div>}
         {error && !modalOpen && <div className="feedback error-feedback" role="alert"><AlertCircle size={17} />{error}<button type="button" aria-label="Fechar erro" onClick={() => setError("")}><X size={16} /></button></div>}
 
+        {view === "kanban" && (
+          <section className="task-filter-card kanban-filter-card" aria-label="Buscar tarefas no quadro">
+            <div className="task-filters">
+              <label className="task-search-field">
+                <Search size={17} />
+                <input
+                  type="search"
+                  placeholder="Buscar por título ou nº do chamado..."
+                  value={search}
+                  onChange={(event) => { setPage(1); setSearch(event.target.value); }}
+                />
+              </label>
+              <span className="kanban-board-total">{total} {total === 1 ? "tarefa" : "tarefas"}</span>
+            </div>
+          </section>
+        )}
+
+        {view === "list" && <>
         <section className="task-status-grid" aria-label="Resumo por status">
           {statusOptions.map(({ value, label }) => (
             <button
@@ -352,7 +420,9 @@ export function TaskListPage() {
             </button>
           ))}
         </section>
+        </>}
 
+        {view === "list" && (
         <section className="task-filter-card" aria-label="Filtros de tarefas">
           <div className="task-filter-heading"><Filter size={17} /><strong>Filtros</strong>{activeFilters > 0 && <span>{activeFilters} ativos</span>}</div>
           <div className="task-filters">
@@ -415,7 +485,38 @@ export function TaskListPage() {
             )}
           </div>
         </section>
+        )}
 
+        {view === "kanban" ? (
+          <section className="kanban-board" aria-label="Quadro de tarefas por status">
+            {loading ? (
+              <div className="task-list-state kanban-loading"><LoaderCircle className="spin" size={24} />Carregando tarefas...</div>
+            ) : kanbanStatuses.map(({ value, label }) => (
+              <KanbanColumn
+                key={value}
+                status={value}
+                label={label}
+                count={counts[value]}
+                tasks={tasks.filter((task) => task.status === value)}
+                canView={canView}
+                canEdit={canEdit}
+                movingTaskIds={movingTaskIds}
+                onView={(task) => openTask(task, true)}
+                onEdit={(task) => openTask(task, false)}
+                onMove={moveTask}
+              />
+            ))}
+            {!loading && pages > 1 && (
+              <div className="kanban-pagination">
+                <span>Exibindo página {page} de {pages} ({tasks.length} de {total} tarefas)</span>
+                <div>
+                  <button className="button button-secondary" type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft size={16} />Anterior</button>
+                  <button className="button button-secondary" type="button" disabled={page >= pages} onClick={() => setPage((current) => current + 1)}>Próxima<ChevronRight size={16} /></button>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : (
         <section className="task-list-section" aria-label="Lista de tarefas">
           <div className="task-list-title">
             <h2>Todas as Tarefas</h2>
@@ -448,6 +549,7 @@ export function TaskListPage() {
             </div>
           )}
         </section>
+        )}
       </div>
 
       {modalOpen && portalReady && createPortal(
@@ -516,6 +618,100 @@ function TaskCard({ task, canView, canEdit, onView, onEdit }: {
         </div>
       </div>
     </article>
+  );
+}
+
+function KanbanColumn({
+  status,
+  label,
+  count,
+  tasks,
+  canView,
+  canEdit,
+  movingTaskIds,
+  onView,
+  onEdit,
+  onMove,
+}: {
+  status: TaskStatus;
+  label: string;
+  count: number;
+  tasks: Task[];
+  canView: boolean;
+  canEdit: boolean;
+  movingTaskIds: Set<string>;
+  onView: (task: Task) => void;
+  onEdit: (task: Task) => void;
+  onMove: (task: Task, status: TaskStatus) => void;
+}) {
+  const statusIndex = kanbanStatuses.findIndex((item) => item.value === status);
+  return (
+    <section className={`kanban-column kanban-column-${status.toLowerCase()}`} aria-label={`${label}: ${count} tarefas`}>
+      <header className="kanban-column-header">
+        <span className="kanban-column-marker" />
+        <h2>{label}</h2>
+        <span className="kanban-column-count">{count}</span>
+      </header>
+      <div className="kanban-column-content">
+        {tasks.length === 0 ? (
+          <div className="kanban-column-empty">Nenhuma tarefa nesta etapa.</div>
+        ) : tasks.map((task) => (
+          <article className={`kanban-task-card${movingTaskIds.has(task.id) ? " is-moving" : ""}`} key={task.id}>
+            <div className="kanban-task-topline">
+              <span className="task-code">{task.codigo ?? `#${task.numero}`}</span>
+              <span className={`task-priority-badge priority-${task.prioridade.toLowerCase()}`}>{getPriorityLabel(task.prioridade)}</span>
+            </div>
+            <h3>{task.titulo}</h3>
+            {task.categoria && <span className="task-category-badge kanban-category">{task.categoria}</span>}
+            <div className="kanban-task-meta">
+              {task.responsavel ? (
+                <span className="kanban-assignee" title={task.responsavel.nome}>
+                  <span className="task-avatar">{initials(task.responsavel.nome)}</span>
+                  <span>{task.responsavel.nome}</span>
+                </span>
+              ) : (
+                <span className="kanban-assignee kanban-unassigned">Sem responsável</span>
+              )}
+              <span className={`kanban-deadline${isOverdue(task) ? " overdue" : ""}`}>
+                <CalendarDays size={13} /> {formatDate(task.prazo)}
+              </span>
+            </div>
+            <div className="kanban-task-actions">
+              {(canView || canEdit) && (
+                <div className="kanban-open-actions">
+                  {canView && <button className="icon-button" type="button" aria-label={`Visualizar ${task.titulo}`} title="Visualizar" onClick={() => onView(task)}><Eye size={15} /></button>}
+                  {canEdit && <button className="icon-button" type="button" aria-label={`Editar ${task.titulo}`} title="Editar" onClick={() => onEdit(task)}><Pencil size={15} /></button>}
+                </div>
+              )}
+              {canEdit && (
+                <div className="kanban-move-actions" aria-label={`Mover ${task.titulo}`}>
+                  {statusIndex > 0 && (
+                    <button
+                      className="kanban-move-button"
+                      type="button"
+                      aria-label={`Mover ${task.titulo} para ${kanbanStatuses[statusIndex - 1].label}`}
+                      title={`Mover para ${kanbanStatuses[statusIndex - 1].label}`}
+                      disabled={movingTaskIds.has(task.id)}
+                      onClick={() => onMove(task, kanbanStatuses[statusIndex - 1].value)}
+                    ><ArrowLeft size={15} /></button>
+                  )}
+                  {statusIndex < kanbanStatuses.length - 1 && (
+                    <button
+                      className="kanban-move-button"
+                      type="button"
+                      aria-label={`Mover ${task.titulo} para ${kanbanStatuses[statusIndex + 1].label}`}
+                      title={`Mover para ${kanbanStatuses[statusIndex + 1].label}`}
+                      disabled={movingTaskIds.has(task.id)}
+                      onClick={() => onMove(task, kanbanStatuses[statusIndex + 1].value)}
+                    ><ArrowRight size={15} /></button>
+                  )}
+                </div>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -31,6 +31,10 @@ export async function GET(request: Request) {
     if (status && !isOneOf(taskStatuses, status)) {
       return NextResponse.json({ error: "O filtro de status é inválido." }, { status: 400 });
     }
+    const hideArchived = searchParams.get("ocultarArquivadas");
+    if (hideArchived !== null && hideArchived !== "true" && hideArchived !== "false") {
+      return NextResponse.json({ error: "O filtro de tarefas arquivadas é inválido." }, { status: 400 });
+    }
     const fromDate = parseDate(searchParams.get("dataDe"));
     const untilDate = parseDate(searchParams.get("dataAte"));
     if (fromDate === false || untilDate === false) {
@@ -58,6 +62,7 @@ export async function GET(request: Request) {
       });
     }
     if (status) filters.push({ status });
+    if (hideArchived === "true") filters.push({ status: { not: "ARQUIVADA" } });
     const categoria = searchParams.get("categoria");
     if (categoria) filters.push({ categoria });
     const responsavelId = searchParams.get("responsavelId");
@@ -80,7 +85,9 @@ export async function GET(request: Request) {
       });
     }
     const where: Prisma.TaskWhereInput = { AND: [visibilityWhere, ...filters] };
-    const countFilters = status ? filters.filter((filter) => !("status" in filter)) : filters;
+    const countFilters = status
+      ? filters.filter((filter) => !("status" in filter) || typeof filter.status === "object")
+      : filters;
     const countWhere: Prisma.TaskWhereInput = { AND: [visibilityWhere, ...countFilters] };
     const prisma = obterPrisma();
     const [tarefas, total, statusGroups, usuarios, unidades, categorias] = await Promise.all([

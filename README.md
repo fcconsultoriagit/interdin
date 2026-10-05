@@ -21,7 +21,7 @@ As rotas de páginas verificam `visualizar`, os itens de navegação verificam `
 O catálogo inicial de módulos e recursos é criado de forma idempotente na primeira consulta à API.
 O catálogo RBAC está organizado em Visão Geral, Tarefas, Operações e Análises e Configurações. Ao sincronizar o catálogo, permissões de recursos existentes que mudaram de módulo são transferidas para os novos registros.
 
-O menu inclui `/painel`, `/tarefas/minhas`, `/tarefas`, `/tarefas/kanban`, `/tarefas/colaboracoes`, `/relatorios` e `/configuracoes`. A listagem em `/tarefas` possui persistência e o badge de Minhas Tarefas usa a contagem real de tarefas atribuídas ao usuário. Os demais submódulos de tarefas, relatórios e configurações ainda estão em estrutura inicial.
+O menu inclui `/painel`, `/tarefas/minhas`, `/tarefas`, `/tarefas/kanban`, `/tarefas/colaboracoes`, `/relatorios` e `/configuracoes`. A listagem em `/tarefas` e o quadro Kanban em `/tarefas/kanban` compartilham o formulário de tarefas; o badge de Minhas Tarefas usa a contagem real de tarefas atribuídas ao usuário. Minhas Tarefas, Colaborações, relatórios e configurações ainda estão em estrutura inicial.
 
 ## API
 
@@ -46,13 +46,13 @@ As telas de gestão estão disponíveis em `/unidades` e `/cargos`.
 
 A gestão de usuários está disponível em `/usuarios`.
 
-- `GET /api/tarefas`: lista tarefas paginadas (`pagina`, `porPagina`) e aceita filtros `busca`, `status`, `categoria`, `responsavelId`, `unidadeId`, `dataDe` e `dataAte`; também retorna contagens por status e opções dos filtros.
+- `GET /api/tarefas`: lista tarefas paginadas (`pagina`, `porPagina`) e aceita filtros `busca`, `status`, `categoria`, `responsavelId`, `unidadeId`, `dataDe` e `dataAte`; também retorna contagens por status e opções dos filtros. `ocultarArquivadas=true` exclui tarefas arquivadas do resultado.
 - `POST /api/tarefas`: cria tarefa e gera código sequencial no formato `#AAMMNNNN`.
 - `GET /api/tarefas/:id`: carrega uma tarefa acessível ao usuário.
 - `PUT`/`PATCH /api/tarefas/:id`: atualiza os campos permitidos da tarefa.
 - `GET /api/tarefas/minhas-count`: retorna a quantidade de tarefas atribuídas ao usuário autenticado.
 
-A listagem e o formulário de tarefas estão disponíveis em `/tarefas`. Tarefas privadas só são retornadas ao criador, responsável e colaboradores; tarefas não privadas vinculadas a unidades são visíveis aos membros da unidade principal ou das unidades compartilhadas, além do criador, responsável e colaboradores. Sem unidades vinculadas, tarefas não privadas ficam visíveis a todos que tenham permissão de visualizar tarefas.
+A listagem e o formulário de tarefas estão disponíveis em `/tarefas`; o quadro Kanban em `/tarefas/kanban` mostra as etapas Não Iniciado, Em andamento, Pendente Coordenação e Concluído, com controles para mover tarefas entre elas. A página exige permissão de visualização para os recursos `kanban` e `tarefas`; mover tarefas também exige `tarefas.editar`. Tarefas privadas só são retornadas ao criador, responsável e colaboradores; tarefas não privadas vinculadas a unidades são visíveis aos membros da unidade principal ou das unidades compartilhadas, além do criador, responsável e colaboradores. Sem unidades vinculadas, tarefas não privadas ficam visíveis a todos que tenham permissão de visualizar tarefas.
 
 - `POST /api/auth/login`: autentica com `{ "email": "...", "senha": "..." }` e inicia a sessão HTTP-only.
 - `POST /api/auth/logout`: encerra a sessão.
