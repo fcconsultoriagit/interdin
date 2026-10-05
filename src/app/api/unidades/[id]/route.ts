@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteContext) {
+  const authorization = await autorizarApi(request, "unidades", "editar");
+  if ("response" in authorization) return authorization.response;
   const { id } = await params;
 
   try {

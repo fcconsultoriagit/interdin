@@ -1,6 +1,9 @@
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
+import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
+import { canGrantPermissions, toGrantablePermissions } from "@/lib/rbac";
+import type { AuthenticatedUser } from "@/lib/rbac";
 import { isRecord, readRelationIds, validateRelations } from "@/lib/usuarios";
 
 const usuarioSelect = {
@@ -36,14 +39,22 @@ const usuarioSelect = {
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteContext) {
-  return updateUser(request, params);
+  const authorization = await autorizarApi(request, "usuarios", "editar");
+  if ("response" in authorization) return authorization.response;
+  return updateUser(request, params, authorization.user);
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  return updateUser(request, params);
+  const authorization = await autorizarApi(request, "usuarios", "editar");
+  if ("response" in authorization) return authorization.response;
+  return updateUser(request, params, authorization.user);
 }
 
-async function updateUser(request: Request, paramsPromise: RouteContext["params"]) {
+async function updateUser(
+  request: Request,
+  paramsPromise: RouteContext["params"],
+  actor: AuthenticatedUser,
+) {
   const { id } = await paramsPromise;
 
   try {
@@ -107,10 +118,52 @@ async function updateUser(request: Request, paramsPromise: RouteContext["params"
     const prisma = obterPrisma();
     const currentUser = await prisma.user.findUnique({
       where: { id },
-      select: { unidadeId: true, cargoId: true, perfilId: true },
+      select: {
+        unidadeId: true,
+        cargoId: true,
+        perfilId: true,
+        perfil: {
+          select: {
+            administradorTotal: true,
+            permissoes: {
+              select: {
+                verMenu: true,
+                visualizar: true,
+                criar: true,
+                editar: true,
+                excluir: true,
+                recurso: { select: { slug: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!currentUser) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    }
+    if (
+      !canGrantPermissions(
+        actor.permissoes,
+        toGrantablePermissions(currentUser.perfil?.permissoes ?? []),
+      ) ||
+      (currentUser.perfil?.administradorTotal === true && !actor.permissoes.administradorTotal)
+    ) {
+      return NextResponse.json(
+        { error: "Seu perfil não pode alterar uma conta com permissões superiores." },
+        { status: 403 },
+      );
+    }
+    if (
+      typeof body.senha === "string" &&
+      body.senha.length > 0 &&
+      id !== actor.id &&
+      !actor.permissoes.administradorTotal
+    ) {
+      return NextResponse.json(
+        { error: "Somente um administrador pode redefinir a senha de outro usuário." },
+        { status: 403 },
+      );
     }
     if (data.email) {
       const duplicate = await prisma.user.findFirst({
@@ -124,6 +177,37 @@ async function updateUser(request: Request, paramsPromise: RouteContext["params"
     const relationError = await validateRelations(prisma, relations, currentUser);
     if (relationError) {
       return NextResponse.json({ error: relationError }, { status: 400 });
+    }
+    if (relations.perfilId && relations.perfilId !== currentUser.perfilId) {
+      const targetProfile = await prisma.profile.findUnique({
+        where: { id: relations.perfilId },
+        select: {
+          administradorTotal: true,
+          permissoes: {
+            select: {
+              verMenu: true,
+              visualizar: true,
+              criar: true,
+              editar: true,
+              excluir: true,
+              recurso: { select: { slug: true } },
+            },
+          },
+        },
+      });
+      if (
+        !targetProfile ||
+        (targetProfile.administradorTotal && !actor.permissoes.administradorTotal) ||
+        !canGrantPermissions(
+          actor.permissoes,
+          toGrantablePermissions(targetProfile.permissoes),
+        )
+      ) {
+        return NextResponse.json(
+          { error: "Não é permitido atribuir um perfil com permissões superiores às suas." },
+          { status: 403 },
+        );
+      }
     }
     Object.assign(data, relations);
 
@@ -163,10 +247,48 @@ async function updateUser(request: Request, paramsPromise: RouteContext["params"
   }
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
+export async function DELETE(request: Request, { params }: RouteContext) {
+  const authorization = await autorizarApi(request, "usuarios", "excluir");
+  if ("response" in authorization) return authorization.response;
   const { id } = await params;
   try {
-    const usuario = await obterPrisma().user.update({
+    const prisma = obterPrisma();
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        perfil: {
+          select: {
+            administradorTotal: true,
+            permissoes: {
+              select: {
+                verMenu: true,
+                visualizar: true,
+                criar: true,
+                editar: true,
+                excluir: true,
+                recurso: { select: { slug: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!existingUser) {
+      return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    }
+    if (
+      !canGrantPermissions(
+        authorization.user.permissoes,
+        toGrantablePermissions(existingUser.perfil?.permissoes ?? []),
+      ) ||
+      (existingUser.perfil?.administradorTotal === true && !authorization.user.permissoes.administradorTotal)
+    ) {
+      return NextResponse.json(
+        { error: "Seu perfil não pode desativar uma conta com permissões superiores." },
+        { status: 403 },
+      );
+    }
+    const usuario = await prisma.user.update({
       where: { id },
       data: { ativo: false },
       select: { id: true, ativo: true },

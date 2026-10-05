@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
 type ReferentialKind = "unidades" | "cargos";
 type Referential = {
@@ -41,6 +42,9 @@ const definitions = {
 } as const;
 
 export function ReferentialManager({ kind }: ReferentialManagerProps) {
+  const { hasPermission } = useAuthPermissions();
+  const canCreate = hasPermission(kind, "criar");
+  const canEdit = hasPermission(kind, "editar");
   const definition = definitions[kind];
   const Icon = definition.icon;
   const [items, setItems] = useState<Referential[]>([]);
@@ -55,8 +59,6 @@ export function ReferentialManager({ kind }: ReferentialManagerProps) {
   const [sigla, setSigla] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
       const response = await fetch(`/api/${kind}`);
       const payload = (await response.json()) as {
@@ -74,6 +76,8 @@ export function ReferentialManager({ kind }: ReferentialManagerProps) {
   }, [definition.plural, kind]);
 
   useEffect(() => {
+    // Initial remote loading updates component state after the request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 
@@ -175,9 +179,11 @@ export function ReferentialManager({ kind }: ReferentialManagerProps) {
           <h1>{definition.plural}</h1>
           <p>{definition.description}</p>
         </div>
-        <button className="button button-primary" onClick={openCreateModal} type="button">
-          <Plus size={18} /> Nova {definition.singular}
-        </button>
+        {canCreate && (
+          <button className="button button-primary" onClick={openCreateModal} type="button">
+            <Plus size={18} /> Nova {definition.singular}
+          </button>
+        )}
       </div>
 
       {error && (
@@ -250,10 +256,10 @@ export function ReferentialManager({ kind }: ReferentialManagerProps) {
                   <td><span className={`status-pill${item.ativo ? "" : " inactive"}`}><i />{item.ativo ? "Ativo" : "Inativo"}</span></td>
                   <td>
                     <div className="entity-actions">
-                      <button className="icon-button" type="button" onClick={() => openEditModal(item)} aria-label={`Editar ${item.nome}`} title="Editar">
+                      {canEdit && <button className="icon-button" type="button" onClick={() => openEditModal(item)} aria-label={`Editar ${item.nome}`} title="Editar">
                         <Edit3 size={18} />
-                      </button>
-                      <button
+                      </button>}
+                      {canEdit && <button
                         className={`icon-button status-action${item.ativo ? " is-active" : ""}`}
                         type="button"
                         onClick={() => void toggleActive(item)}
@@ -262,7 +268,7 @@ export function ReferentialManager({ kind }: ReferentialManagerProps) {
                         title={item.ativo ? "Inativar" : "Ativar"}
                       >
                         {item.ativo ? <ToggleRight size={21} /> : <ToggleLeft size={21} />}
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>

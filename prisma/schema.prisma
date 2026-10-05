@@ -39,6 +39,7 @@ model Profile {
   nome        String              @unique
   descricao   String?
   ativo       Boolean             @default(true)
+  administradorTotal Boolean      @default(false)
   usuarios    User[]
   permissoes  ProfilePermission[]
   createdAt   DateTime            @default(now())

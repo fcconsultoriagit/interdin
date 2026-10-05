@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
+import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
+import { canGrantPermissions, toGrantablePermissions } from "@/lib/rbac";
 import { isRecord, readRelationIds, validateRelations } from "@/lib/usuarios";
 
 const usuarioSelect = {
@@ -34,6 +36,8 @@ const usuarioSelect = {
 } as const;
 
 export async function GET(request: Request) {
+  const authorization = await autorizarApi(request, "usuarios", "visualizar");
+  if ("response" in authorization) return authorization.response;
   try {
     const searchParams = new URL(request.url).searchParams;
     const busca = (searchParams.get("busca") ?? searchParams.get("search") ?? searchParams.get("q"))?.trim();
@@ -77,6 +81,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const authorization = await autorizarApi(request, "usuarios", "criar");
+  if ("response" in authorization) return authorization.response;
   try {
     const body: unknown = await request.json();
     if (!isRecord(body)) {
@@ -116,6 +122,37 @@ export async function POST(request: Request) {
     const relationError = await validateRelations(prisma, relationIds);
     if (relationError) {
       return NextResponse.json({ error: relationError }, { status: 400 });
+    }
+    if (relationIds.perfilId) {
+      const targetProfile = await prisma.profile.findUnique({
+        where: { id: relationIds.perfilId },
+        select: {
+          administradorTotal: true,
+          permissoes: {
+            select: {
+              verMenu: true,
+              visualizar: true,
+              criar: true,
+              editar: true,
+              excluir: true,
+              recurso: { select: { slug: true } },
+            },
+          },
+        },
+      });
+      if (
+        !targetProfile ||
+        (targetProfile.administradorTotal && !authorization.user.permissoes.administradorTotal) ||
+        !canGrantPermissions(
+          authorization.user.permissoes,
+          toGrantablePermissions(targetProfile.permissoes),
+        )
+      ) {
+        return NextResponse.json(
+          { error: "Não é permitido atribuir um perfil com permissões superiores às suas." },
+          { status: 403 },
+        );
+      }
     }
 
     const senhaHash = await hash(senha, 12);

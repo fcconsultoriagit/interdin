@@ -48,12 +48,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   outline-offset: 3px;
 }
 
-.app-shell { min-height: 100vh; }
+.app-shell { display: flex; height: 100vh; height: 100dvh; flex-direction: column; overflow: hidden; }
 
 .institutional-header {
-  position: relative;
-  z-index: 6;
+  position: sticky;
+  top: 0;
+  z-index: 40;
   display: flex;
+  flex: 0 0 auto;
   min-height: 88px;
   align-items: center;
   justify-content: space-between;
@@ -117,20 +119,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   letter-spacing: .08em;
 }
 
+.workspace-shell { display: flex; min-height: 0; flex: 1 1 auto; }
 .sidebar {
-  position: fixed;
-  inset: 88px auto 0 0;
-  z-index: 5;
+  position: relative;
   display: flex;
   width: 288px;
+  min-height: 0;
+  flex: 0 0 288px;
   flex-direction: column;
   border-right: 1px solid var(--line);
   background: #fff;
   padding: 24px 16px 16px;
   overflow-y: auto;
-  transition: width 300ms ease-in-out;
+  transition: width 300ms ease-in-out, flex-basis 300ms ease-in-out;
 }
-.app-shell.sidebar-collapsed .sidebar { width: 80px; padding-right: 8px; padding-left: 8px; }
+.app-shell.sidebar-collapsed .sidebar { width: 80px; flex-basis: 80px; padding-right: 8px; padding-left: 8px; }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .app-shell.sidebar-collapsed .sidebar-heading { flex-direction: column; justify-content: center; gap: 12px; }
 .app-shell.sidebar-collapsed .brand { justify-content: center; padding: 0; }
@@ -144,8 +147,46 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .app-shell.sidebar-collapsed .nav-group-items { gap: 7px; }
 .app-shell.sidebar-collapsed .nav-item { justify-content: center; padding: 0; }
 .app-shell.sidebar-collapsed .nav-item.active::before { display: none; }
+.app-shell.sidebar-collapsed .nav-item::after {
+  position: absolute;
+  z-index: 8;
+  top: 50%;
+  left: calc(100% + 10px);
+  width: max-content;
+  transform: translateY(-50%);
+  border-radius: 8px;
+  background: var(--navy);
+  padding: 7px 10px;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+  visibility: hidden;
+}
+.app-shell.sidebar-collapsed .nav-item:hover::after,
+.app-shell.sidebar-collapsed .nav-item:focus-visible::after { opacity: 1; visibility: visible; }
 .app-shell.sidebar-collapsed .sidebar-bottom { width: 100%; }
 .app-shell.sidebar-collapsed .account-card { justify-content: center; padding: 8px 0; }
+.sidebar-error { margin: 0 4px 8px; color: #762d2a; font-size: 14px; overflow-wrap: anywhere; }
+.login-page { display: grid; min-height: 100vh; place-items: center; background: var(--canvas); padding: 24px; }
+.login-card { width: min(100%, 440px); border: 1px solid var(--line); border-top: 4px solid var(--gold); border-radius: 12px; background: #fff; padding: 34px; box-shadow: 0 18px 60px #00265412; }
+.login-brand-mark { display: grid; width: 48px; height: 48px; margin-bottom: 22px; place-items: center; border: 1px solid #e8d4ad; border-radius: 13px; background: var(--navy); color: var(--gold); }
+.login-card h1 { margin: 0; color: var(--navy); font-size: 28px; font-weight: 700; }
+.login-card > p { margin: 8px 0 20px; color: var(--muted); }
+.login-card .form-label { margin-top: 15px; }
+.admin-flag-option { display: flex; align-items: flex-start; gap: 11px; border: 1px solid var(--line); border-radius: 12px; margin-top: 18px; padding: 12px; cursor: pointer; }
+.admin-flag-option input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--navy); }
+.admin-flag-option span { display: flex; flex-direction: column; gap: 3px; }
+.admin-flag-option strong { color: var(--navy); font-size: 15px; }
+.admin-flag-option small { color: var(--muted); font-size: 14px; }
+.login-submit { width: 100%; margin-top: 22px; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.access-denied { min-height: 50vh; }
+.access-denied h1 { margin: 8px 0 0; color: var(--navy); font-size: 30px; font-weight: 700; }
+.access-denied p { max-width: 620px; }
 .brand {
   display: flex;
   min-width: 0;
@@ -210,6 +251,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .nav-group-label { margin: 0 10px 7px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .07em; line-height: 1.4; }
 .nav-group-items { display: grid; gap: 4px; }
 .nav-item {
+  position: relative;
   display: flex;
   min-height: 46px;
   align-items: center;
@@ -244,20 +286,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .main-content {
   display: flex;
-  min-height: calc(100vh - 88px);
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
-  margin-left: 288px;
-  transition: margin-left 300ms ease-in-out;
+  overflow-y: auto;
 }
-.app-shell.sidebar-collapsed .main-content { margin-left: 80px; }
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   display: flex;
+  flex: 0 0 auto;
   min-height: 66px;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid #e2e8f0;
   background: #fff;
   padding: 0 40px;
+  box-shadow: 0 2px 5px #17283d0a;
 }
 .breadcrumbs { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
 .breadcrumbs strong { color: var(--navy); font-weight: 650; }
@@ -598,8 +645,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 @media (max-width: 1100px) {
   .institutional-header { padding-right: 24px; padding-left: 24px; }
-  .sidebar { width: 288px; }
-  .main-content { margin-left: 288px; }
+  .sidebar { width: 288px; flex-basis: 288px; }
   .page-wrap { padding-right: 24px; padding-left: 24px; }
   .topbar { padding-right: 24px; padding-left: 24px; }
   .workspace-grid { grid-template-columns: 210px minmax(0, 1fr); }
@@ -618,8 +664,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .court-crest { height: 40px; }
   .court-identity > span:last-child, .court-identity strong { font-size: 14px; }
   .system-identity { font-size: 18px; }
-  .sidebar { inset-block-start: 90px; }
-  .main-content { min-height: calc(100vh - 90px); }
   .page-wrap { padding: 25px 18px 20px; }
   .topbar { min-height: 58px; padding: 0 18px; }
   .summary-grid { gap: 10px; }
@@ -642,8 +686,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .identity-divider { height: 31px; }
   .system-identity { flex-wrap: wrap; gap: 5px; font-size: 16px; }
   .system-identity-unit { padding-left: 6px; font-size: 14px; }
-  .sidebar { inset-block-start: 115px; }
-  .main-content { min-height: calc(100vh - 115px); }
   .breadcrumbs { gap: 7px; font-size: 14px; }
   .help-button { display: none; }
   .topbar-actions { gap: 8px; }

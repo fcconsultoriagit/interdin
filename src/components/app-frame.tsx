@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Building2,
@@ -22,42 +23,67 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
 const navigation = [
   {
     label: "VISÃO GERAL",
     items: [
-      { label: "Visão geral", href: "/painel", icon: LayoutDashboard },
+    { label: "Visão geral", href: "/painel", resource: "painel", icon: LayoutDashboard },
     ],
   },
   {
     label: "TAREFAS",
     items: [
-      { label: "Minhas Tarefas", href: "/tarefas/minhas", icon: ListTodo },
-      { label: "Todas as Tarefas", href: "/tarefas", icon: ListChecks },
-      { label: "Quadro Kanban", href: "/tarefas/kanban", icon: Columns3 },
-      { label: "Colaborações", href: "/tarefas/colaboracoes", icon: Share2 },
+      { label: "Minhas Tarefas", href: "/tarefas/minhas", resource: "minhas-tarefas", icon: ListTodo },
+      { label: "Todas as Tarefas", href: "/tarefas", resource: "tarefas", icon: ListChecks },
+      { label: "Quadro Kanban", href: "/tarefas/kanban", resource: "kanban", icon: Columns3 },
+      { label: "Colaborações", href: "/tarefas/colaboracoes", resource: "colaboracoes", icon: Share2 },
     ],
   },
   {
     label: "OPERAÇÕES E ANÁLISES",
     items: [
-      { label: "Relatórios", href: "/relatorios", icon: FileText },
+      { label: "Relatórios", href: "/relatorios", resource: "relatorios", icon: FileText },
     ],
   },
   {
     label: "CONFIGURAÇÕES",
     items: [
-      { label: "Usuários", href: "/usuarios", icon: Users },
-      { label: "Perfis e permissões", href: "/perfis", icon: ShieldCheck },
-      { label: "Unidades", href: "/unidades", icon: Building2 },
-      { label: "Cargos", href: "/cargos", icon: BriefcaseBusiness },
-      { label: "Configurações gerais", href: "/configuracoes", icon: Settings2 },
+      { label: "Usuários", href: "/usuarios", resource: "usuarios", icon: Users },
+      { label: "Perfis e permissões", href: "/perfis", resource: "perfis", icon: ShieldCheck },
+      { label: "Unidades", href: "/unidades", resource: "unidades", icon: Building2 },
+      { label: "Cargos", href: "/cargos", resource: "cargos", icon: BriefcaseBusiness },
+      { label: "Configurações gerais", href: "/configuracoes", resource: "configuracoes", icon: Settings2 },
     ],
   },
 ];
+
+const sidebarPreferenceKey = "interdin-sidebar-collapsed";
+
+function subscribeToSidebarPreference(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("interdin-sidebar-toggle", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("interdin-sidebar-toggle", callback);
+  };
+}
+
+function getSidebarPreference() {
+  try {
+    return window.localStorage.getItem(sidebarPreferenceKey) === "true";
+  } catch (error) {
+    console.error("Não foi possível carregar a preferência da barra lateral:", error);
+    return false;
+  }
+}
+
+function getServerSidebarPreference() {
+  return false;
+}
 
 type AppFrameProps = {
   section: string;
@@ -65,26 +91,35 @@ type AppFrameProps = {
 };
 
 export function AppFrame({ section, children }: AppFrameProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
-    try {
-      setSidebarCollapsed(window.localStorage.getItem("interdin-sidebar-collapsed") === "true");
-    } catch (error) {
-      console.error("Não foi possível carregar a preferência da barra lateral:", error);
-    }
-  }, []);
+  const router = useRouter();
+  const { user, canViewMenu } = useAuthPermissions();
+  const sidebarCollapsed = useSyncExternalStore(
+    subscribeToSidebarPreference,
+    getSidebarPreference,
+    getServerSidebarPreference,
+  );
+  const [logoutError, setLogoutError] = useState("");
 
   function toggleSidebar() {
-    setSidebarCollapsed((current) => {
-      const next = !current;
-      try {
-        window.localStorage.setItem("interdin-sidebar-collapsed", String(next));
-      } catch (error) {
-        console.error("Não foi possível salvar a preferência da barra lateral:", error);
-      }
-      return next;
-    });
+    try {
+      window.localStorage.setItem(sidebarPreferenceKey, String(!sidebarCollapsed));
+    } catch (error) {
+      console.error("Não foi possível salvar a preferência da barra lateral:", error);
+    }
+    window.dispatchEvent(new Event("interdin-sidebar-toggle"));
+  }
+
+  async function logout() {
+    setLogoutError("");
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Não foi possível encerrar a sessão.");
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Falha ao encerrar sessão:", error);
+      setLogoutError(error instanceof Error ? error.message : "Não foi possível encerrar a sessão.");
+    }
   }
 
   return (
@@ -118,113 +153,116 @@ export function AppFrame({ section, children }: AppFrameProps) {
         </nav>
       </header>
 
-      <aside className="sidebar">
-        <div className="sidebar-heading">
-          <Link className="brand" href="/" aria-label="Interdin início" title="Interdin início">
-            <span className="brand-mark">
-              <Sparkles size={19} strokeWidth={2.4} />
-            </span>
-            <span>
-              interdin<span className="brand-dot">.</span>
-            </span>
-          </Link>
-          <button
-            className="sidebar-toggle"
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
-        </div>
-        <div className="workspace-switcher">
-          <span className="workspace-avatar">I</span>
-          <span className="workspace-copy">
-            <strong>Interdin</strong>
-            <small>Workspace principal</small>
-          </span>
-          <ChevronDown size={15} />
-        </div>
-        <nav className="main-nav" aria-label="Menu principal">
-          {navigation.map((group) => (
-            <section className="nav-group" key={group.label} aria-label={group.label}>
-              <h2 className="nav-group-label">{group.label}</h2>
-              <div className="nav-group-items">
-                {group.items.map(({ label, href, icon: Icon }) => (
-                  <Link
-                    key={href}
-                    className={`nav-item${section === label ? " active" : ""}`}
-                    href={href}
-                    aria-label={label}
-                    aria-current={section === label ? "page" : undefined}
-                    title={label}
-                    data-tooltip={label}
-                  >
-                    <Icon size={18} strokeWidth={1.8} />
-                    <span>{label}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="sidebar-divider" />
-          <button className="account-card" type="button">
-            <span className="account-avatar">MC</span>
+      <div className="workspace-shell">
+        <aside className="sidebar">
+          <div className="sidebar-heading">
+            <Link className="brand" href="/painel" aria-label="Interdin início" title="Interdin início">
+              <span className="brand-mark">
+                <Sparkles size={19} strokeWidth={2.4} />
+              </span>
+              <span>
+                interdin<span className="brand-dot">.</span>
+              </span>
+            </Link>
+            <button
+              className="sidebar-toggle"
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+              aria-expanded={!sidebarCollapsed}
+              title={sidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
+          </div>
+          <div className="workspace-switcher">
+            <span className="workspace-avatar">I</span>
             <span className="workspace-copy">
-              <strong>Mariana Costa</strong>
-              <small>Administradora</small>
+              <strong>Interdin</strong>
+              <small>Workspace principal</small>
             </span>
-            <MoreHorizontal size={18} />
-          </button>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumbs">
-            <span>Gestão</span>
-            <span className="crumb-separator">/</span>
-            <strong>{section}</strong>
+            <ChevronDown size={15} />
           </div>
-          <div className="topbar-actions">
-            <button className="icon-button help-button" aria-label="Ajuda" type="button">
-              <CircleHelp size={18} />
+          <nav className="main-nav" aria-label="Menu principal">
+            {navigation.filter((group) => group.items.some(({ resource }) => canViewMenu(resource))).map((group) => (
+              <section className="nav-group" key={group.label} aria-label={group.label}>
+                <h2 className="nav-group-label">{group.label}</h2>
+                <div className="nav-group-items">
+                  {group.items.filter(({ resource }) => canViewMenu(resource)).map(({ label, href, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      className={`nav-item${section === label ? " active" : ""}`}
+                      href={href}
+                      aria-label={label}
+                      aria-current={section === label ? "page" : undefined}
+                      title={label}
+                      data-tooltip={label}
+                    >
+                      <Icon size={18} strokeWidth={1.8} />
+                      <span>{label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </nav>
+          <div className="sidebar-bottom">
+            {logoutError && <div className="sidebar-error" role="alert">{logoutError}</div>}
+            <div className="sidebar-divider" />
+            <button className="account-card" type="button" onClick={() => void logout()} title="Encerrar sessão">
+              <span className="account-avatar">{user?.nome.split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase("pt-BR")).join("") ?? "?"}</span>
+              <span className="workspace-copy">
+                <strong>{user?.nome ?? "Usuário"}</strong>
+                <small>{user?.perfilNome ?? "Sem perfil"}</small>
+              </span>
+              <MoreHorizontal size={18} />
             </button>
-            <button className="icon-button notification-button" aria-label="Notificações" type="button">
-              <Bell size={18} />
-              <i />
-            </button>
-            <span className="topbar-avatar">MC</span>
           </div>
-        </header>
+        </aside>
 
-        {children}
+        <main className="main-content">
+          <header className="topbar">
+            <div className="breadcrumbs">
+              <span>Gestão</span>
+              <span className="crumb-separator">/</span>
+              <strong>{section}</strong>
+            </div>
+            <div className="topbar-actions">
+              <button className="icon-button help-button" aria-label="Ajuda" type="button">
+                <CircleHelp size={18} />
+              </button>
+              <button className="icon-button notification-button" aria-label="Notificações" type="button">
+                <Bell size={18} />
+                <i />
+              </button>
+              <span className="topbar-avatar">MC</span>
+            </div>
+          </header>
 
-        <footer className="institutional-footer">
-          <div className="footer-brand-signature" aria-label="Marcas TJBA, SETIM e InterDin">
-            <span className="footer-tjba">TJBA</span>
-            <span className="signature-divider" aria-hidden="true" />
-            <span className="footer-setim">SETIM</span>
-            <span className="signature-divider" aria-hidden="true" />
-            <span className="footer-interdin">InterDin</span>
-          </div>
-          <div className="footer-institutional-details">
-            <span>
-              Suporte institucional <strong>SETIM · Tecnologia da Informação</strong>
-            </span>
-            <nav aria-label="Links úteis">
-              <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
-              <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
-              <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
-            </nav>
-            <span className="app-version">InterDin · Versão 1.0.0</span>
-          </div>
-        </footer>
-      </main>
+          {children}
+
+          <footer className="institutional-footer">
+            <div className="footer-brand-signature" aria-label="Marcas TJBA, SETIM e InterDin">
+              <span className="footer-tjba">TJBA</span>
+              <span className="signature-divider" aria-hidden="true" />
+              <span className="footer-setim">SETIM</span>
+              <span className="signature-divider" aria-hidden="true" />
+              <span className="footer-interdin">InterDin</span>
+            </div>
+            <div className="footer-institutional-details">
+              <span>
+                Suporte institucional <strong>SETIM · Tecnologia da Informação</strong>
+              </span>
+              <nav aria-label="Links úteis">
+                <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
+                <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
+                <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
+              </nav>
+              <span className="app-version">InterDin · Versão 1.0.0</span>
+            </div>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Montserrat, Public_Sans } from "next/font/google";
 import "./globals.css";
+import { obterSessaoAtual } from "@/lib/auth";
+import { AuthPermissionsProvider } from "@/hooks/useAuthPermissions";
 
 const publicSans = Public_Sans({
   variable: "--font-public-sans",
@@ -18,13 +20,17 @@ export const metadata: Metadata = {
   description: "Gerencie perfis de acesso e permissões da plataforma Interdin.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const user = await obterSessaoAtual();
+
   return (
     <html
       lang="pt-BR"
       className={`${publicSans.variable} ${montserratInstitutional.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthPermissionsProvider user={user}>{children}</AuthPermissionsProvider>
+      </body>
     </html>
   );
 }

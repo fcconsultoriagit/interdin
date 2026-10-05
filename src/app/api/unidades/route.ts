@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authorization = await autorizarApi(request, "unidades", "visualizar");
+  if ("response" in authorization) return authorization.response;
   try {
     const unidades = await obterPrisma().unidade.findMany({
       orderBy: { nome: "asc" },
@@ -18,6 +21,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authorization = await autorizarApi(request, "unidades", "criar");
+  if ("response" in authorization) return authorization.response;
   try {
     const body: unknown = await request.json();
     if (!isRecord(body)) {

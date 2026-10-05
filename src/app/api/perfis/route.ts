@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
+import { canGrantPermissions } from "@/lib/rbac";
 import {
   catalogoPermissoes,
   lerPermissoes,
@@ -76,7 +78,9 @@ async function garantirCatalogo(prisma: ReturnType<typeof obterPrisma>) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authorization = await autorizarApi(request, "perfis", "visualizar");
+  if ("response" in authorization) return authorization.response;
   try {
     const prisma = obterPrisma();
     await garantirCatalogo(prisma);
@@ -132,6 +136,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authorization = await autorizarApi(request, "perfis", "criar");
+  if ("response" in authorization) return authorization.response;
   try {
     const prisma = obterPrisma();
     await garantirCatalogo(prisma);
@@ -145,6 +151,16 @@ export async function POST(request: Request) {
     if ("descricao" in input && typeof input.descricao !== "string") {
       return NextResponse.json({ error: "A descrição do perfil é inválida." }, { status: 400 });
     }
+    if ("administradorTotal" in input && typeof input.administradorTotal !== "boolean") {
+      return NextResponse.json({ error: "A flag de administrador total é inválida." }, { status: 400 });
+    }
+    const administradorTotal = input.administradorTotal === true;
+    if (administradorTotal && !authorization.user.permissoes.administradorTotal) {
+      return NextResponse.json(
+        { error: "Somente um administrador total pode conceder esse nível de acesso." },
+        { status: 403 },
+      );
+    }
     const descricao = typeof input.descricao === "string" ? input.descricao.trim() : "";
     const permissoes = lerPermissoes(input.permissoes);
 
@@ -157,7 +173,7 @@ export async function POST(request: Request) {
 
     const recursos = await prisma.resource.findMany({
       where: { id: { in: permissoes.map(({ recursoId }) => recursoId) } },
-      select: { id: true },
+      select: { id: true, slug: true },
     });
     if (recursos.length !== permissoes.length) {
       return NextResponse.json(
@@ -165,11 +181,23 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const slugById = new Map(recursos.map(({ id, slug }) => [id, slug]));
+    const grantedPermissions = permissoes.map(({ recursoId, ...values }) => ({
+      resourceKey: slugById.get(recursoId) ?? "",
+      permissions: values,
+    }));
+    if (!canGrantPermissions(authorization.user.permissoes, grantedPermissions)) {
+      return NextResponse.json(
+        { error: "Não é permitido conceder ações que seu próprio perfil não possui." },
+        { status: 403 },
+      );
+    }
 
     const perfil = await prisma.profile.create({
       data: {
         nome,
         descricao: descricao || null,
+        administradorTotal,
         permissoes: {
           createMany: { data: permissoes },
         },
