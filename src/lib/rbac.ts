@@ -12,6 +12,8 @@ export type AuthenticatedUser = {
   id: string;
   nome: string;
   email: string;
+  unidadeId: string | null;
+  unidadeNome: string | null;
   perfilNome: string | null;
   permissoes: UserPermissions;
 };

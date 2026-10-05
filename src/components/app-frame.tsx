@@ -23,7 +23,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
@@ -99,6 +99,28 @@ export function AppFrame({ section, children }: AppFrameProps) {
     getServerSidebarPreference,
   );
   const [logoutError, setLogoutError] = useState("");
+  const [assignedTaskCount, setAssignedTaskCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user || !canViewMenu("minhas-tarefas")) return;
+    let active = true;
+    void fetch("/api/tarefas/minhas-count", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { total?: number; error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar a contagem de tarefas.");
+        if (typeof payload.total !== "number") throw new Error("A contagem de tarefas retornada é inválida.");
+        return payload.total;
+      })
+      .then((total) => {
+        if (active) setAssignedTaskCount(total);
+      })
+      .catch((error: unknown) => {
+        console.error("Falha ao carregar o badge de tarefas atribuídas:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user, canViewMenu]);
 
   function toggleSidebar() {
     try {
@@ -200,6 +222,11 @@ export function AppFrame({ section, children }: AppFrameProps) {
                     >
                       <Icon size={18} strokeWidth={1.8} />
                       <span>{label}</span>
+                      {href === "/tarefas/minhas" && assignedTaskCount !== null && (
+                        <span className="nav-count" aria-label={`${assignedTaskCount} tarefas atribuídas`}>
+                          {assignedTaskCount}
+                        </span>
+                      )}
                     </Link>
                   ))}
                 </div>

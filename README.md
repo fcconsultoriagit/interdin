@@ -21,7 +21,7 @@ As rotas de páginas verificam `visualizar`, os itens de navegação verificam `
 O catálogo inicial de módulos e recursos é criado de forma idempotente na primeira consulta à API.
 O catálogo RBAC está organizado em Visão Geral, Tarefas, Operações e Análises e Configurações. Ao sincronizar o catálogo, permissões de recursos existentes que mudaram de módulo são transferidas para os novos registros.
 
-O menu inclui `/painel`, `/tarefas/minhas`, `/tarefas`, `/tarefas/kanban`, `/tarefas/colaboracoes`, `/relatorios` e `/configuracoes`. As rotas de tarefas, painel, relatórios e configurações estão disponíveis como estruturas de tela, mas ainda não possuem fluxos funcionais ou persistência. O badge de tarefas atribuídas não é exibido enquanto não existir uma fonte real de tarefas vinculada ao usuário.
+O menu inclui `/painel`, `/tarefas/minhas`, `/tarefas`, `/tarefas/kanban`, `/tarefas/colaboracoes`, `/relatorios` e `/configuracoes`. A listagem em `/tarefas` possui persistência e o badge de Minhas Tarefas usa a contagem real de tarefas atribuídas ao usuário. Os demais submódulos de tarefas, relatórios e configurações ainda estão em estrutura inicial.
 
 ## API
 
@@ -29,7 +29,7 @@ O menu inclui `/painel`, `/tarefas/minhas`, `/tarefas`, `/tarefas/kanban`, `/tar
 - `POST /api/perfis`: cria um perfil com suas permissões.
 - `PATCH /api/perfis/:id`: atualiza dados e permissões do perfil.
 - `DELETE /api/perfis/:id`: exclui um perfil; usuários vinculados ficam sem perfil.
-- A gestão de perfis e permissões está disponível em `/perfis` (a rota inicial `/` continua compatível).
+- O dashboard está disponível em `/`, `/dashboard` e `/painel`; a gestão de perfis e permissões está em `/perfis`.
 - `GET /api/unidades`: lista unidades com a quantidade de usuários vinculados.
 - `POST /api/unidades`: cadastra unidade com nome e sigla.
 - `PATCH /api/unidades/:id`: edita nome/sigla e altera o status com `{ "ativo": false }`.
@@ -45,6 +45,14 @@ As telas de gestão estão disponíveis em `/unidades` e `/cargos`.
 - `DELETE /api/usuarios/:id`: desativa o usuário sem remover o registro.
 
 A gestão de usuários está disponível em `/usuarios`.
+
+- `GET /api/tarefas`: lista tarefas paginadas (`pagina`, `porPagina`) e aceita filtros `busca`, `status`, `categoria`, `responsavelId`, `unidadeId`, `dataDe` e `dataAte`; também retorna contagens por status e opções dos filtros.
+- `POST /api/tarefas`: cria tarefa e gera código sequencial no formato `#AAMMNNNN`.
+- `GET /api/tarefas/:id`: carrega uma tarefa acessível ao usuário.
+- `PUT`/`PATCH /api/tarefas/:id`: atualiza os campos permitidos da tarefa.
+- `GET /api/tarefas/minhas-count`: retorna a quantidade de tarefas atribuídas ao usuário autenticado.
+
+A listagem e o formulário de tarefas estão disponíveis em `/tarefas`. Tarefas privadas só são retornadas ao criador, responsável e colaboradores; tarefas não privadas vinculadas a unidades são visíveis aos membros da unidade principal ou das unidades compartilhadas, além do criador, responsável e colaboradores. Sem unidades vinculadas, tarefas não privadas ficam visíveis a todos que tenham permissão de visualizar tarefas.
 
 - `POST /api/auth/login`: autentica com `{ "email": "...", "senha": "..." }` e inicia a sessão HTTP-only.
 - `POST /api/auth/logout`: encerra a sessão.
