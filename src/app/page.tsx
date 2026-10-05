@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Activity,
   ArrowDownUp,
@@ -232,6 +233,31 @@ export default function Home() {
 
   return (
     <div className="app-shell">
+      <header className="institutional-header">
+        <div className="institutional-quick-links" aria-label="Links institucionais">
+          <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
+          <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
+          <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
+          <a href="https://www.tjba.jus.br/portal/acessibilidade/">Acessibilidade</a>
+        </div>
+        <div className="institutional-identification">
+          <a className="court-identity" href="https://www.tjba.jus.br/portal/">
+            <Image
+              className="court-crest"
+              src="/logo-tjba.png"
+              alt=""
+              width={300}
+              height={223}
+              priority
+            />
+            <span>Tribunal de Justiça <strong>do Estado da Bahia</strong></span>
+          </a>
+          <span className="identity-divider" aria-hidden="true" />
+          <div className="system-identity" aria-label="InterDin - COATE">
+            <span>InterDin</span><span className="system-identity-unit">– COATE</span>
+          </div>
+        </div>
+      </header>
       <aside className="sidebar">
         <a className="brand" href="#" aria-label="Interdin início">
           <span className="brand-mark"><Sparkles size={19} strokeWidth={2.4} /></span>
@@ -287,7 +313,7 @@ export default function Home() {
 
           <section className="summary-grid" aria-label="Resumo">
             <article className="summary-card">
-              <span className="summary-icon purple"><Shield size={18} /></span>
+              <span className="summary-icon gold"><Shield size={18} /></span>
               <div><span className="summary-label">Perfis cadastrados</span><strong>{loading ? "—" : profiles.length.toString().padStart(2, "0")}</strong></div>
               <span className="summary-note">{profiles.filter((profile) => profile.ativo).length} ativos</span>
             </article>
@@ -402,8 +428,25 @@ export default function Home() {
               </div>
             </div>
           </section>
-          <footer className="page-footer"><span>© 2025 Interdin. Todos os direitos reservados.</span><span>Central de ajuda <span className="footer-dot">·</span> Privacidade</span></footer>
         </div>
+        <footer className="institutional-footer">
+          <div className="footer-brand-signature" aria-label="Marcas TJBA, SETIM e InterDin">
+            <span className="footer-tjba">TJBA</span>
+            <span className="signature-divider" aria-hidden="true" />
+            <span className="footer-setim">SETIM</span>
+            <span className="signature-divider" aria-hidden="true" />
+            <span className="footer-interdin">InterDin</span>
+          </div>
+          <div className="footer-institutional-details">
+            <span>Suporte institucional <strong>SETIM · Tecnologia da Informação</strong></span>
+            <nav aria-label="Links úteis">
+              <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
+              <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
+              <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
+            </nav>
+            <span className="app-version">InterDin · Versão 1.0.0</span>
+          </div>
+        </footer>
       </main>
 
       {showCreate && (
