@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  nome               String
+  email              String   @unique
+  senhaHash          String
+  unidade            String?
+  cargo              String?
+  podeCriarTarefas   Boolean  @default(false)
+  podeEditarTarefas  Boolean  @default(false)
+  podeAtribuirTarefas Boolean @default(false)
+  podeConcluirTarefas Boolean @default(false)
+  ativo              Boolean  @default(true)
+  perfilId           String?
+  perfil             Profile? @relation(fields: [perfilId], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([perfilId])
+  @@index([unidade])
+  @@map("usuarios")
+}
+
+model Profile {
+  id          String              @id @default(cuid())
+  nome        String              @unique
+  descricao   String?
+  ativo       Boolean             @default(true)
+  usuarios    User[]
+  permissoes  ProfilePermission[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@map("perfis")
+}
+
+model Module {
+  id        String     @id @default(cuid())
+  nome      String
+  slug      String     @unique
+  ordem     Int        @default(0)
+  recursos  Resource[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("modulos")
+}
+
+model Resource {
+  id         String              @id @default(cuid())
+  nome       String
+  slug       String
+  moduleId   String
+  modulo     Module              @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  permissoes ProfilePermission[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([moduleId, slug])
+  @@index([moduleId])
+  @@map("recursos")
+}
+
+model ProfilePermission {
+  id          String   @id @default(cuid())
+  profileId   String
+  recursoId   String
+  perfil      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  recurso     Resource @relation(fields: [recursoId], references: [id], onDelete: Cascade)
+  verMenu     Boolean  @default(false)
+  visualizar  Boolean  @default(false)
+  criar       Boolean  @default(false)
+  editar      Boolean  @default(false)
+  excluir     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([profileId, recursoId])
+  @@index([recursoId])
+  @@map("permissoes_perfil")
+}
