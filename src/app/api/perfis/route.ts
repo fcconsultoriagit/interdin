@@ -6,15 +6,21 @@ import {
 } from "@/lib/permissoes";
 
 async function garantirCatalogo(prisma: ReturnType<typeof obterPrisma>) {
-  for (const module of catalogoPermissoes) {
+  const recursosCanonicos = new Map<string, string>();
+
+  for (const moduleDefinition of catalogoPermissoes) {
     const savedModule = await prisma.module.upsert({
-      where: { slug: module.slug },
-      create: { nome: module.nome, slug: module.slug, ordem: module.ordem },
-      update: { nome: module.nome, ordem: module.ordem },
+      where: { slug: moduleDefinition.slug },
+      create: {
+        nome: moduleDefinition.nome,
+        slug: moduleDefinition.slug,
+        ordem: moduleDefinition.ordem,
+      },
+      update: { nome: moduleDefinition.nome, ordem: moduleDefinition.ordem },
     });
 
-    for (const resource of module.recursos) {
-      await prisma.resource.upsert({
+    for (const resource of moduleDefinition.recursos) {
+      const savedResource = await prisma.resource.upsert({
         where: {
           moduleId_slug: { moduleId: savedModule.id, slug: resource.slug },
         },
@@ -25,8 +31,48 @@ async function garantirCatalogo(prisma: ReturnType<typeof obterPrisma>) {
         },
         update: { nome: resource.nome },
       });
+      recursosCanonicos.set(resource.slug, savedResource.id);
     }
+  }
 
+  const recursosLegados = await prisma.resource.findMany({
+    where: { slug: { in: [...recursosCanonicos.keys()] } },
+    select: { id: true, slug: true },
+  });
+  const recursosMovidos = recursosLegados.filter(
+    (resource) => recursosCanonicos.get(resource.slug) !== resource.id,
+  );
+
+  if (recursosMovidos.length > 0) {
+    const idsLegados = recursosMovidos.map(({ id }) => id);
+    const permissoesLegadas = await prisma.profilePermission.findMany({
+      where: { recursoId: { in: idsLegados } },
+      select: {
+        profileId: true,
+        recursoId: true,
+        verMenu: true,
+        visualizar: true,
+        criar: true,
+        editar: true,
+        excluir: true,
+      },
+    });
+    const recursosMovidosPorId = new Map<string, string>(
+      recursosMovidos.map(({ id, slug }) => [id, slug]),
+    );
+    const permissoesMigradas = permissoesLegadas.flatMap((permission) => {
+      const slug = recursosMovidosPorId.get(permission.recursoId);
+      const recursoId = slug && recursosCanonicos.get(slug);
+      return recursoId ? [{ ...permission, recursoId }] : [];
+    });
+
+    if (permissoesMigradas.length > 0) {
+      await prisma.profilePermission.createMany({
+        data: permissoesMigradas,
+        skipDuplicates: true,
+      });
+    }
+    await prisma.resource.deleteMany({ where: { id: { in: idsLegados } } });
   }
 }
 
@@ -34,7 +80,7 @@ export async function GET() {
   try {
     const prisma = obterPrisma();
     await garantirCatalogo(prisma);
-    const [perfis, modulos] = await Promise.all([
+    const [perfis, modulosDoBanco] = await Promise.all([
       prisma.profile.findMany({
         orderBy: { nome: "asc" },
         include: {
@@ -52,10 +98,28 @@ export async function GET() {
         },
       }),
       prisma.module.findMany({
+        where: { slug: { in: catalogoPermissoes.map(({ slug }) => slug) } },
         orderBy: { ordem: "asc" },
         include: { recursos: { orderBy: { nome: "asc" } } },
       }),
     ]);
+    const modulos = modulosDoBanco.map((module) => {
+      const catalogModule = catalogoPermissoes.find(({ slug }) => slug === module.slug);
+      const resourceOrder = new Map<string, number>(
+        catalogModule?.recursos.map(({ slug }, index) => [slug, index]) ?? [],
+      );
+
+      return {
+        ...module,
+        recursos: module.recursos
+          .filter((resource) => resourceOrder.has(resource.slug))
+          .sort(
+            (left, right) =>
+              (resourceOrder.get(left.slug) ?? 0) -
+              (resourceOrder.get(right.slug) ?? 0),
+          ),
+      };
+    });
 
     return NextResponse.json({ perfis, modulos });
   } catch (error) {

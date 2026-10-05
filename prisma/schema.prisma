@@ -9,24 +9,28 @@ datasource db {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  nome               String
-  email              String   @unique
-  senhaHash          String
-  unidade            String?
-  cargo              String?
-  podeCriarTarefas   Boolean  @default(false)
-  podeEditarTarefas  Boolean  @default(false)
-  podeAtribuirTarefas Boolean @default(false)
-  podeConcluirTarefas Boolean @default(false)
-  ativo              Boolean  @default(true)
-  perfilId           String?
-  perfil             Profile? @relation(fields: [perfilId], references: [id], onDelete: SetNull)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  ativo     Boolean  @default(true)
+
+  // Relações independentes
+  unidadeId String?
+  unidade   Unidade? @relation(fields: [unidadeId], references: [id], onDelete: SetNull)
+
+  cargoId   String?
+  cargo     Cargo?   @relation(fields: [cargoId], references: [id], onDelete: SetNull)
+
+  perfilId  String?
+  perfil    Profile? @relation(fields: [perfilId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([perfilId])
-  @@index([unidade])
+  @@index([unidadeId])
+  @@index([cargoId])
   @@map("usuarios")
 }
 
@@ -87,4 +91,27 @@ model ProfilePermission {
   @@unique([profileId, recursoId])
   @@index([recursoId])
   @@map("permissoes_perfil")
+}
+
+model Unidade {
+  id        String   @id @default(cuid())
+  nome      String
+  sigla     String   @unique
+  ativo     Boolean  @default(true)
+  usuarios  User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("unidades")
+}
+
+model Cargo {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  ativo     Boolean  @default(true)
+  usuarios  User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cargos")
 }

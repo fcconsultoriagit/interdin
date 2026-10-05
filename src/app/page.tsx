@@ -1,29 +1,20 @@
 "use client";
 
-import Image from "next/image";
 import {
-  Activity,
   ArrowDownUp,
-  Bell,
   Check,
-  ChevronDown,
-  CircleHelp,
-  FileText,
-  LayoutDashboard,
   LockKeyhole,
-  MoreHorizontal,
   Plus,
   Search,
-  Settings2,
   Shield,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { AppFrame } from "@/components/app-frame";
 
 const actions = [
   { key: "verMenu", label: "Ver menu" },
@@ -47,14 +38,6 @@ type Profile = {
   permissoes: Permission[];
   _count: { usuarios: number };
 };
-
-const menuItems = [
-  { label: "Visão geral", icon: LayoutDashboard },
-  { label: "Usuários", icon: Users },
-  { label: "Perfis e permissões", icon: ShieldCheck, active: true },
-  { label: "Atividades", icon: Activity },
-  { label: "Relatórios", icon: FileText },
-];
 
 export default function Home() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -232,73 +215,7 @@ export default function Home() {
   ) ?? 0;
 
   return (
-    <div className="app-shell">
-      <header className="institutional-header">
-        <div className="institutional-quick-links" aria-label="Links institucionais">
-          <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
-          <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
-          <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
-          <a href="https://www.tjba.jus.br/portal/acessibilidade/">Acessibilidade</a>
-        </div>
-        <div className="institutional-identification">
-          <a className="court-identity" href="https://www.tjba.jus.br/portal/">
-            <Image
-              className="court-crest"
-              src="/logo-tjba.png"
-              alt=""
-              width={300}
-              height={223}
-              priority
-            />
-            <span>Tribunal de Justiça <strong>do Estado da Bahia</strong></span>
-          </a>
-          <span className="identity-divider" aria-hidden="true" />
-          <div className="system-identity" aria-label="InterDin - COATE">
-            <span>InterDin</span><span className="system-identity-unit">– COATE</span>
-          </div>
-        </div>
-      </header>
-      <aside className="sidebar">
-        <a className="brand" href="#" aria-label="Interdin início">
-          <span className="brand-mark"><Sparkles size={19} strokeWidth={2.4} /></span>
-          <span>interdin<span className="brand-dot">.</span></span>
-        </a>
-        <div className="workspace-switcher">
-          <span className="workspace-avatar">I</span>
-          <span className="workspace-copy"><strong>Interdin</strong><small>Workspace principal</small></span>
-          <ChevronDown size={15} />
-        </div>
-        <div className="nav-label">MENU PRINCIPAL</div>
-        <nav className="main-nav" aria-label="Menu principal">
-          {menuItems.map(({ label, icon: Icon, active }) => (
-            <a key={label} className={`nav-item${active ? " active" : ""}`} href="#" aria-current={active ? "page" : undefined}>
-              <Icon size={18} strokeWidth={1.8} />
-              <span>{label}</span>
-              {label === "Atividades" && <span className="nav-count">4</span>}
-            </a>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <a className="nav-item" href="#"><Settings2 size={18} strokeWidth={1.8} /><span>Configurações</span></a>
-          <div className="sidebar-divider" />
-          <button className="account-card" type="button">
-            <span className="account-avatar">MC</span>
-            <span className="workspace-copy"><strong>Mariana Costa</strong><small>Administradora</small></span>
-            <MoreHorizontal size={18} />
-          </button>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumbs"><span>Configurações</span><span className="crumb-separator">/</span><strong>Perfis e permissões</strong></div>
-          <div className="topbar-actions">
-            <button className="icon-button help-button" aria-label="Ajuda" type="button"><CircleHelp size={18} /></button>
-            <button className="icon-button notification-button" aria-label="Notificações" type="button"><Bell size={18} /><i /></button>
-            <span className="topbar-avatar">MC</span>
-          </div>
-        </header>
-
+    <AppFrame section="Perfis e permissões">
         <div className="page-wrap">
           <div className="page-heading">
             <div>
@@ -429,26 +346,6 @@ export default function Home() {
             </div>
           </section>
         </div>
-        <footer className="institutional-footer">
-          <div className="footer-brand-signature" aria-label="Marcas TJBA, SETIM e InterDin">
-            <span className="footer-tjba">TJBA</span>
-            <span className="signature-divider" aria-hidden="true" />
-            <span className="footer-setim">SETIM</span>
-            <span className="signature-divider" aria-hidden="true" />
-            <span className="footer-interdin">InterDin</span>
-          </div>
-          <div className="footer-institutional-details">
-            <span>Suporte institucional <strong>SETIM · Tecnologia da Informação</strong></span>
-            <nav aria-label="Links úteis">
-              <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
-              <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
-              <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
-            </nav>
-            <span className="app-version">InterDin · Versão 1.0.0</span>
-          </div>
-        </footer>
-      </main>
-
       {showCreate && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setShowCreate(false);
@@ -471,6 +368,6 @@ export default function Home() {
           </form>
         </div>
       )}
-    </div>
+    </AppFrame>
   );
 }

@@ -1,25 +1,38 @@
 export const catalogoPermissoes = [
   {
-    nome: "Visão geral",
+    nome: "Visão Geral",
     slug: "visao-geral",
     ordem: 0,
-    recursos: [{ nome: "Painel", slug: "painel" }],
+    recursos: [{ nome: "Visão geral (Painel / Dashboard)", slug: "painel" }],
   },
   {
-    nome: "Gestão",
-    slug: "gestao",
+    nome: "Tarefas",
+    slug: "tarefas",
     ordem: 1,
     recursos: [
-      { nome: "Usuários", slug: "usuarios" },
-      { nome: "Perfis e permissões", slug: "perfis" },
-      { nome: "Tarefas", slug: "tarefas" },
+      { nome: "Minhas Tarefas", slug: "minhas-tarefas" },
+      { nome: "Todas as Tarefas", slug: "tarefas" },
+      { nome: "Quadro Kanban", slug: "kanban" },
+      { nome: "Colaborações", slug: "colaboracoes" },
     ],
   },
   {
-    nome: "Análises",
+    nome: "Operações e Análises",
     slug: "analises",
     ordem: 2,
     recursos: [{ nome: "Relatórios", slug: "relatorios" }],
+  },
+  {
+    nome: "Configurações",
+    slug: "gestao",
+    ordem: 3,
+    recursos: [
+      { nome: "Usuários", slug: "usuarios" },
+      { nome: "Perfis e permissões", slug: "perfis" },
+      { nome: "Unidades", slug: "unidades" },
+      { nome: "Cargos", slug: "cargos" },
+      { nome: "Configurações gerais", slug: "configuracoes" },
+    ],
   },
 ] as const;
 
