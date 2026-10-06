@@ -8,7 +8,11 @@ export async function GET(request: Request) {
 
   try {
     const total = await obterPrisma().task.count({
-      where: { responsavelId: authorization.user.id },
+      where: {
+        responsavelId: authorization.user.id,
+        criadorId: { not: authorization.user.id },
+        status: { notIn: ["CONCLUIDO", "ARQUIVADA"] },
+      },
     });
     return NextResponse.json({ total }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

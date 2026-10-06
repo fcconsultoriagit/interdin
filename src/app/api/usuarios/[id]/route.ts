@@ -11,6 +11,8 @@ const usuarioSelect = {
   nome: true,
   email: true,
   ativo: true,
+  podeAtribuirParaOutros: true,
+  podeConvidarColaboradores: true,
   unidadeId: true,
   cargoId: true,
   perfilId: true,
@@ -68,6 +70,8 @@ async function updateUser(
       email?: string;
       senhaHash?: string;
       ativo?: boolean;
+      podeAtribuirParaOutros?: boolean;
+      podeConvidarColaboradores?: boolean;
       unidadeId?: string | null;
       cargoId?: string | null;
       perfilId?: string | null;
@@ -110,6 +114,14 @@ async function updateUser(
       }
       data.ativo = body.ativo;
     }
+    const governanceKeys = ["podeAtribuirParaOutros", "podeConvidarColaboradores"] as const;
+    for (const key of governanceKeys) {
+      if (!(key in body)) continue;
+      if (typeof body[key] !== "boolean") {
+        return NextResponse.json({ error: "As permissões especiais de tarefas são inválidas." }, { status: 400 });
+      }
+      data[key] = body[key];
+    }
 
     const relations = readRelationIds(body);
     if (!relations) {
@@ -119,9 +131,12 @@ async function updateUser(
     const currentUser = await prisma.user.findUnique({
       where: { id },
       select: {
+        email: true,
         unidadeId: true,
         cargoId: true,
         perfilId: true,
+        podeAtribuirParaOutros: true,
+        podeConvidarColaboradores: true,
         perfil: {
           select: {
             administradorTotal: true,
@@ -141,6 +156,12 @@ async function updateUser(
     });
     if (!currentUser) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    }
+    if (
+      !actor.permissoes.administradorTotal &&
+      governanceKeys.some((key) => key in body && body[key] !== currentUser[key])
+    ) {
+      return NextResponse.json({ error: "Somente um administrador total pode alterar as permissões especiais de tarefas." }, { status: 403 });
     }
     if (
       !canGrantPermissions(
@@ -210,6 +231,18 @@ async function updateUser(
       }
     }
     Object.assign(data, relations);
+
+    const targetProfileId = relations.perfilId ?? currentUser.perfilId;
+    const targetProfile = targetProfileId
+      ? await prisma.profile.findUnique({ where: { id: targetProfileId }, select: { nome: true } })
+      : null;
+    if (
+      (data.email ?? currentUser.email).toLocaleLowerCase("pt-BR") === "fdscosta@tjba.jus.br" ||
+      targetProfile?.nome === "Administrador"
+    ) {
+      data.podeAtribuirParaOutros = true;
+      data.podeConvidarColaboradores = true;
+    }
 
     if (Object.keys(data).length === 0) {
       if ("senha" in body && body.senha === "") {

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import type { AuthenticatedUser } from "@/lib/rbac";
 
 export const taskStatuses = [
   "NAO_INICIADO",
@@ -212,6 +213,42 @@ export async function taskDataWithCategory(
   if (!category || !category.ativa) return { error: "A categoria selecionada não existe ou está inativa." };
 
   return { data: { ...data, categoria: `[${category.sigla}] ${category.nome}` } };
+}
+
+export function applyTaskGovernance(
+  data: Partial<TaskInput>,
+  actor: Pick<AuthenticatedUser, "id" | "podeAtribuirParaOutros" | "podeConvidarColaboradores">,
+  partial: boolean,
+): { data: Partial<TaskInput> } | { error: string } {
+  const result = { ...data };
+
+  if (!actor.podeAtribuirParaOutros) {
+    if (
+      Object.prototype.hasOwnProperty.call(result, "responsavelId") &&
+      result.responsavelId !== actor.id &&
+      (partial || result.responsavelId !== null)
+    ) {
+      return { error: "Você não tem permissão para atribuir tarefas a outros usuários." };
+    }
+    if (!partial) result.responsavelId = actor.id;
+  }
+  if (!actor.podeConvidarColaboradores) {
+    if ((result.colaboradoresIds?.length ?? 0) > 0) {
+      return { error: "Você não tem permissão para convidar colaboradores para tarefas." };
+    }
+    if (partial && Object.prototype.hasOwnProperty.call(result, "colaboradoresIds")) {
+      return { error: "Você não tem permissão para alterar os colaboradores da tarefa." };
+    }
+    if (!partial) result.colaboradoresIds = [];
+  }
+  if (
+    result.responsavelId &&
+    result.colaboradoresIds?.includes(result.responsavelId)
+  ) {
+    return { error: "O responsável principal não pode também ser colaborador da tarefa." };
+  }
+
+  return { data: result };
 }
 
 export async function validateTaskRelations(

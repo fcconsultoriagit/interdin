@@ -520,6 +520,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .task-empty-state > span { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #e8d4ad; border-radius: 13px; background: #faf6ed; color: var(--dark-gold); }
 .task-empty-state > strong { color: var(--navy); font-size: 18px; }
 .task-empty-state p { margin: 0 0 7px; color: var(--muted); font-size: 14px; }
+.my-task-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #d9dfe6; margin-bottom: 18px; background: #fff; }
+.my-task-tab { position: relative; display: inline-flex; min-height: 58px; flex: 1 0 auto; align-items: center; justify-content: center; gap: 9px; border: 0; border-bottom: 3px solid transparent; background: transparent; padding: 0 18px; color: #526276; font-size: 15px; font-weight: 600; cursor: pointer; transition: color .16s, background .16s, border-color .16s; }
+.my-task-tab:hover { background: #f8fafc; color: var(--navy); }
+.my-task-tab.active { border-bottom-color: var(--gold); color: var(--navy); }
+.my-task-tab-count { display: inline-grid; min-width: 24px; height: 24px; place-items: center; border: 1px solid #dce3ea; border-radius: 999px; background: #f4f6f8; padding: 0 6px; color: #526276; font-size: 12px; font-weight: 700; }
+.my-task-tab.active .my-task-tab-count { border-color: #e8d4ad; background: #faf6ed; color: #725929; }
+.my-task-filter-card .task-filters { align-items: flex-end; }
+.my-task-sort { display: grid; min-width: 190px; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.my-task-sort select { width: 100%; min-height: 42px; border: 1px solid #cbd3dc; border-radius: 12px; background: #fff; padding: 0 10px; color: var(--navy); font: inherit; font-size: 14px; }
+.my-task-sort select:focus { border-color: var(--gold); outline: 0; box-shadow: 0 0 0 3px #ddb56338; }
 .task-pagination { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); margin-top: 13px; padding-top: 9px; color: var(--muted); font-size: 14px; }
 .task-pagination > div { display: flex; gap: 5px; }
 .task-pagination .icon-button:disabled { opacity: .45; cursor: not-allowed; }
@@ -547,6 +557,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .task-choice-fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 12px; margin: 14px 0 2px; padding: 10px 12px 12px; }
 .task-choice-fieldset legend { padding: 0 5px; color: var(--navy); font-size: 13px; font-weight: 650; }
 .task-choice-grid { display: grid; max-height: 135px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; overflow-y: auto; }
+.task-selected-users { display: flex; flex-wrap: wrap; gap: 7px; margin: 3px 0 10px; }
+.task-selected-user { display: inline-flex; min-height: 28px; align-items: center; gap: 5px; border: 1px solid #d5e2ee; border-radius: 999px; background: #edf4fa; padding: 3px 7px 3px 10px; color: var(--institutional-blue); font-size: 13px; font-weight: 600; }
+.task-selected-user button { display: grid; width: 19px; height: 19px; place-items: center; border: 0; border-radius: 50%; background: #ffffffa8; color: inherit; cursor: pointer; }
+.user-governance-option { margin: 7px 0; }
+.user-form-grid .user-form-field-wide.task-choice-fieldset { display: block; }
+.user-form-grid .user-form-field-wide.task-choice-fieldset > small { display: block; margin-top: 8px; }
 .task-choice { display: flex; min-width: 0; align-items: center; gap: 7px; color: #40536a; font-size: 13px; }
 .task-choice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-progress-input { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
@@ -909,6 +925,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .task-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .task-status-card { min-height: 77px; padding: 10px; }
   .task-filters { align-items: stretch; padding: 12px; }
+  .my-task-tab { min-height: 52px; justify-content: flex-start; padding: 0 13px; font-size: 14px; }
+  .my-task-sort { flex: 1 1 170px; }
   .task-search-field { width: 100%; flex-basis: 100%; }
   .task-filters .filter-select-label { flex: 1 1 calc(50% - 8px); min-width: 130px; }
   .task-card-main { padding: 13px; }

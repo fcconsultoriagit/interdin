@@ -9,10 +9,13 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Eye,
   FilePlus2,
   Filter,
+  Handshake,
   ListChecks,
+  ListTodo,
   LoaderCircle,
   Pencil,
   Plus,
@@ -105,6 +108,13 @@ type TaskResponse = {
   opcoes: TaskOptions;
   error?: string;
 };
+type MyTasksTab = "atribuídas" | "ondeColaboro" | "criadasPorMim";
+type MyTasksResponse = {
+  tarefas: Record<MyTasksTab, Task[]>;
+  contagens: Record<MyTasksTab, number>;
+  opcoes: TaskOptions;
+  error?: string;
+};
 
 const initialOptions: TaskOptions = { usuarios: [], unidades: [], categorias: [] };
 const emptyCounts = Object.fromEntries(statusOptions.map(({ value }) => [value, 0])) as Record<TaskStatus, number>;
@@ -169,6 +179,10 @@ function isOverdue(task: Task) {
     new Date(task.prazo).getTime() < Date.now() &&
     task.status !== "CONCLUIDO" &&
     task.status !== "ARQUIVADA";
+}
+
+function notifyAssignedTaskCountRefresh() {
+  window.dispatchEvent(new Event("interdin-task-count-refresh"));
 }
 
 export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
@@ -257,6 +271,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       ...emptyForm,
       dataTarefa: dateTimeLocalValue(new Date()),
       unidadeId: user?.unidadeId ?? "",
+      responsavelId: user?.id ?? "",
     });
     setError("");
     setModalOpen(true);
@@ -273,7 +288,9 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       unidadeId: task.unidadeId ?? "",
       unidadesCompartilhadas: task.unidadesCompartilhadas,
       descricao: task.descricao ?? "",
-      responsavelId: task.responsavelId ?? "",
+      responsavelId: !readOnly && !user?.podeAtribuirParaOutros
+        ? user?.id ?? ""
+        : task.responsavelId ?? "",
       prazo: task.prazo ? dateTimeLocalValue(new Date(task.prazo)) : "",
       status: task.status,
       categoriaId: task.categoriaId ?? "",
@@ -295,6 +312,14 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateResponsible(responsavelId: string) {
+    setForm((current) => ({
+      ...current,
+      responsavelId,
+      colaboradoresIds: current.colaboradoresIds.filter((id) => id !== responsavelId),
+    }));
+  }
+
   function toggleSelection(key: "unidadesCompartilhadas" | "colaboradoresIds", id: string) {
     setForm((current) => ({
       ...current,
@@ -311,6 +336,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
     try {
       const payload = {
         ...form,
+        colaboradoresIds: user?.podeConvidarColaboradores ? form.colaboradoresIds : undefined,
         categoriaId: form.categoriaId || null,
         responsavelId: form.responsavelId || null,
         unidadeId: form.unidadeId || null,
@@ -325,6 +351,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "Não foi possível salvar a tarefa.");
       setModalOpen(false);
+      notifyAssignedTaskCountRefresh();
       setNotice(editingTask ? "Tarefa atualizada com sucesso." : "Tarefa criada com sucesso.");
       const controller = new AbortController();
       await loadTasks(controller.signal);
@@ -363,6 +390,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
         throw new Error(result.error ?? "Não foi possível mover a tarefa.");
       }
       setTasks((current) => current.map((item) => item.id === task.id ? result.tarefa! : item));
+      notifyAssignedTaskCountRefresh();
     } catch (moveError) {
       console.error("Falha ao mover tarefa no quadro:", moveError);
       setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: previousStatus } : item));
@@ -575,12 +603,16 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
         <TaskModal
           form={form}
           options={options}
+          currentUser={user ? { id: user.id, nome: user.nome } : null}
+          canAssignToOthers={user?.podeAtribuirParaOutros ?? false}
+          canInviteCollaborators={user?.podeConvidarColaboradores ?? false}
           saving={saving}
           error={error}
           readOnly={viewingTask !== null}
           editing={editingTask !== null}
           onClose={() => { setModalOpen(false); setError(""); }}
           onChange={updateForm}
+          onResponsibleChange={updateResponsible}
           onToggle={toggleSelection}
           onSubmit={saveTask}
         />,
@@ -588,6 +620,298 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       )}
     </AppFrame>
   );
+}
+
+export function MyTasksPage() {
+  const { user } = useAuthPermissions();
+  const { hasPermission } = useAuthPermissions();
+  const canEdit = hasPermission("tarefas", "editar");
+  const [taskGroups, setTaskGroups] = useState<Record<MyTasksTab, Task[]>>({
+    atribuídas: [],
+    ondeColaboro: [],
+    criadasPorMim: [],
+  });
+  const [counts, setCounts] = useState<Record<MyTasksTab, number>>({
+    atribuídas: 0,
+    ondeColaboro: 0,
+    criadasPorMim: 0,
+  });
+  const [options, setOptions] = useState(initialOptions);
+  const [activeTab, setActiveTab] = useState<MyTasksTab>("atribuídas");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"prazo" | "prioridade" | "recentes">("prazo");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [form, setForm] = useState<TaskForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const portalReady = useSyncExternalStore(
+    subscribeToClientReady,
+    getClientReady,
+    getServerClientReady,
+  );
+
+  const loadTasks = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/tarefas/minhas", { cache: "no-store", signal });
+      const payload = await response.json() as MyTasksResponse;
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar suas tarefas.");
+      setTaskGroups(payload.tarefas);
+      setCounts(payload.contagens);
+      setOptions(payload.opcoes);
+    } catch (loadError) {
+      if (signal?.aborted) return;
+      console.error("Falha ao carregar tarefas do usuário:", loadError);
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar suas tarefas.");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => void loadTasks(controller.signal), 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [loadTasks]);
+
+  useEffect(() => {
+    const refreshOnFocus = () => void loadTasks();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, [loadTasks]);
+
+  const visibleTasks = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
+    const filtered = taskGroups[activeTab].filter((task) => (
+      !normalizedSearch ||
+      `${task.titulo} ${task.codigo ?? ""} ${task.category?.sigla ?? ""} ${task.category?.nome ?? task.categoria ?? ""} ${task.criador.nome} ${task.responsavel?.nome ?? ""}`
+        .toLocaleLowerCase("pt-BR")
+        .includes(normalizedSearch)
+    ));
+    return [...filtered].sort((left, right) => {
+      if (sort === "prioridade") {
+        const priorities = { URGENTE: 0, ALTA: 1, MEDIA: 2, BAIXA: 3 };
+        return priorities[left.prioridade] - priorities[right.prioridade]
+          || compareTaskDeadlines(left, right);
+      }
+      if (sort === "recentes") {
+        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      }
+      return compareTaskDeadlines(left, right);
+    });
+  }, [activeTab, search, sort, taskGroups]);
+
+  function openTask(task: Task, readOnly: boolean) {
+    setEditingTask(readOnly ? null : task);
+    setViewingTask(readOnly ? task : null);
+    setForm({
+      titulo: task.titulo,
+      dataTarefa: dateTimeLocalValue(new Date(task.dataTarefa)),
+      privada: task.privada,
+      unidadeId: task.unidadeId ?? "",
+      unidadesCompartilhadas: task.unidadesCompartilhadas,
+      descricao: task.descricao ?? "",
+      responsavelId: !readOnly && !user?.podeAtribuirParaOutros
+        ? user?.id ?? ""
+        : task.responsavelId ?? "",
+      prazo: task.prazo ? dateTimeLocalValue(new Date(task.prazo)) : "",
+      status: task.status,
+      categoriaId: task.categoriaId ?? "",
+      prioridade: task.prioridade,
+      progresso: task.progresso,
+      notasImportantes: task.notasImportantes ?? "",
+      colaboradoresIds: task.colaboradoresIds,
+    });
+    if (task.category) {
+      setOptions((current) => current.categorias.some(({ id }) => id === task.category?.id)
+        ? current
+        : { ...current, categorias: [...current.categorias, task.category!] });
+    }
+    setError("");
+    setModalOpen(true);
+  }
+
+  function updateForm<K extends keyof TaskForm>(key: K, value: TaskForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateResponsible(responsavelId: string) {
+    setForm((current) => ({
+      ...current,
+      responsavelId,
+      colaboradoresIds: current.colaboradoresIds.filter((id) => id !== responsavelId),
+    }));
+  }
+
+  function toggleSelection(key: "unidadesCompartilhadas" | "colaboradoresIds", id: string) {
+    setForm((current) => ({
+      ...current,
+      [key]: current[key].includes(id)
+        ? current[key].filter((selected) => selected !== id)
+        : [...current[key], id],
+    }));
+  }
+
+  async function saveTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingTask) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/tarefas/${editingTask.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          colaboradoresIds: user?.podeConvidarColaboradores ? form.colaboradoresIds : undefined,
+          categoriaId: form.categoriaId || null,
+          responsavelId: form.responsavelId || null,
+          unidadeId: form.unidadeId || null,
+          prazo: form.prazo ? new Date(form.prazo).toISOString() : null,
+          dataTarefa: new Date(form.dataTarefa).toISOString(),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível atualizar a tarefa.");
+      setModalOpen(false);
+      notifyAssignedTaskCountRefresh();
+      setNotice("Tarefa atualizada com sucesso.");
+      await loadTasks();
+    } catch (saveError) {
+      console.error("Falha ao atualizar tarefa:", saveError);
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível atualizar a tarefa.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const tabs: { id: MyTasksTab; label: string; icon: typeof ListTodo }[] = [
+    { id: "atribuídas", label: "Atribuídas a Mim", icon: ListTodo },
+    { id: "ondeColaboro", label: "Onde Colaboro", icon: Handshake },
+    { id: "criadasPorMim", label: "Criadas por Mim", icon: ClipboardList },
+  ];
+  const emptyMessages: Record<MyTasksTab, string> = {
+    atribuídas: "Nenhuma tarefa sob sua responsabilidade no momento.",
+    ondeColaboro: "Você ainda não está colaborando em tarefas.",
+    criadasPorMim: "Você ainda não criou tarefas.",
+  };
+
+  return (
+    <AppFrame section="Minhas Tarefas" breadcrumbParent="Tarefas">
+      <div className="page-wrap task-page my-tasks-page">
+        <div className="page-heading task-page-heading">
+          <div>
+            <div className="eyebrow"><ListTodo size={15} /> GESTÃO DE TAREFAS</div>
+            <h1>Minhas Tarefas</h1>
+            <p>Acompanhe responsabilidades, colaborações e tarefas que você criou.</p>
+          </div>
+        </div>
+
+        {notice && <div className="feedback success-feedback" role="status"><CheckCircle2 size={17} />{notice}<button type="button" aria-label="Fechar aviso" onClick={() => setNotice("")}><X size={16} /></button></div>}
+        {error && !modalOpen && <div className="feedback error-feedback" role="alert"><AlertCircle size={17} />{error}<button type="button" aria-label="Fechar erro" onClick={() => setError("")}><X size={16} /></button></div>}
+
+        <div className="my-task-tabs" role="tablist" aria-label="Grupos de tarefas">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={`my-task-tab${activeTab === id ? " active" : ""}`}
+              type="button"
+              id={`my-task-tab-${id}`}
+              role="tab"
+              aria-selected={activeTab === id}
+              aria-controls="my-task-panel"
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+              <span className="my-task-tab-count" aria-label={`${counts[id]} tarefas ativas`}>{counts[id]}</span>
+            </button>
+          ))}
+        </div>
+
+        <section className="task-filter-card my-task-filter-card" aria-label="Pesquisar e ordenar tarefas">
+          <div className="task-filters">
+            <label className="task-search-field">
+              <Search size={17} />
+              <input type="search" placeholder="Buscar por título, código ou categoria..." value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
+            <label className="my-task-sort">
+              <span>Ordenar por</span>
+              <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+                <option value="prazo">Prazo mais próximo</option>
+                <option value="prioridade">Maior prioridade</option>
+                <option value="recentes">Mais recentes</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section id="my-task-panel" role="tabpanel" aria-labelledby={`my-task-tab-${activeTab}`}>
+          <div className="task-list-title">
+            <h2>{tabs.find(({ id }) => id === activeTab)?.label}</h2>
+            <span>{loading ? "Carregando..." : `${visibleTasks.length} ${visibleTasks.length === 1 ? "tarefa" : "tarefas"}`}</span>
+          </div>
+          {loading ? (
+            <div className="task-list-state"><LoaderCircle className="spin" size={24} />Carregando suas tarefas...</div>
+          ) : visibleTasks.length > 0 ? (
+            <div className="task-cards">
+              {visibleTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  canView
+                  canEdit={canEdit}
+                  onView={() => openTask(task, true)}
+                  onEdit={() => openTask(task, false)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="task-list-state task-empty-state">
+              <span><ListTodo size={23} /></span>
+              <strong>{search ? "Nenhuma tarefa encontrada" : emptyMessages[activeTab]}</strong>
+              {search && <p>Tente alterar os termos da busca.</p>}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {modalOpen && portalReady && createPortal(
+        <TaskModal
+          form={form}
+          options={options}
+          currentUser={user ? { id: user.id, nome: user.nome } : null}
+          canAssignToOthers={user?.podeAtribuirParaOutros ?? false}
+          canInviteCollaborators={user?.podeConvidarColaboradores ?? false}
+          saving={saving}
+          error={error}
+          readOnly={viewingTask !== null}
+          editing={editingTask !== null}
+          onClose={() => { setModalOpen(false); setError(""); }}
+          onChange={updateForm}
+          onResponsibleChange={updateResponsible}
+          onToggle={toggleSelection}
+          onSubmit={saveTask}
+        />,
+        document.body,
+      )}
+    </AppFrame>
+  );
+}
+
+function compareTaskDeadlines(left: Task, right: Task) {
+  if (!left.prazo && !right.prazo) return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  if (!left.prazo) return 1;
+  if (!right.prazo) return -1;
+  return new Date(left.prazo).getTime() - new Date(right.prazo).getTime();
 }
 
 function TaskCard({ task, canView, canEdit, onView, onEdit }: {
@@ -737,23 +1061,31 @@ function KanbanColumn({
 function TaskModal({
   form,
   options,
+  currentUser,
+  canAssignToOthers,
+  canInviteCollaborators,
   saving,
   error,
   readOnly,
   editing,
   onClose,
   onChange,
+  onResponsibleChange,
   onToggle,
   onSubmit,
 }: {
   form: TaskForm;
   options: TaskOptions;
+  currentUser: UserOption | null;
+  canAssignToOthers: boolean;
+  canInviteCollaborators: boolean;
   saving: boolean;
   error: string;
   readOnly: boolean;
   editing: boolean;
   onClose: () => void;
   onChange: <K extends keyof TaskForm>(key: K, value: TaskForm[K]) => void;
+  onResponsibleChange: (responsavelId: string) => void;
   onToggle: (key: "unidadesCompartilhadas" | "colaboradoresIds", id: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -809,9 +1141,11 @@ function TaskModal({
               <textarea className="form-input form-textarea task-description-input" value={form.descricao} onChange={(event) => onChange("descricao", event.target.value)} disabled={disabled} />
             </label>
             <label className="form-label">Responsável
-              <select className="form-input" value={form.responsavelId} onChange={(event) => onChange("responsavelId", event.target.value)} disabled={disabled}>
-                <option value="">Não definido</option>
-                {options.usuarios.map((person) => <option key={person.id} value={person.id}>{person.nome}</option>)}
+              <select className="form-input" value={form.responsavelId} onChange={(event) => onResponsibleChange(event.target.value)} disabled={disabled || (!canAssignToOthers && !readOnly)}>
+                {canAssignToOthers || readOnly
+                  ? <option value="">Não definido</option>
+                  : currentUser && <option value={currentUser.id}>{currentUser.nome}</option>}
+                {(canAssignToOthers || readOnly) && options.usuarios.map((person) => <option key={person.id} value={person.id}>{person.nome}</option>)}
               </select>
             </label>
             <label className="form-label">Categoria
@@ -834,19 +1168,32 @@ function TaskModal({
               <strong>{form.progresso}%</strong>
               <input type="range" min="0" max="100" step="1" value={form.progresso} onChange={(event) => onChange("progresso", Number(event.target.value))} disabled={disabled} />
             </label>
-            <fieldset className="task-choice-fieldset task-form-wide">
+            {canInviteCollaborators && <fieldset className="task-choice-fieldset task-form-wide">
               <legend>Colaboradores</legend>
               {options.usuarios.length === 0 ? <small>Nenhum usuário ativo disponível.</small> : (
-                <div className="task-choice-grid">
-                  {options.usuarios.map((person) => (
-                    <label key={person.id} className="task-choice">
-                      <input type="checkbox" checked={form.colaboradoresIds.includes(person.id)} onChange={() => onToggle("colaboradoresIds", person.id)} disabled={disabled} />
-                      <span>{person.nome}</span>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  <div className="task-selected-users">
+                    {form.colaboradoresIds.map((id) => {
+                      const person = options.usuarios.find((userOption) => userOption.id === id);
+                      return person ? (
+                        <span className="task-selected-user" key={id}>
+                          {person.nome}
+                          {!disabled && <button type="button" aria-label={`Remover ${person.nome} dos colaboradores`} onClick={() => onToggle("colaboradoresIds", id)}><X size={13} /></button>}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                  <div className="task-choice-grid">
+                    {options.usuarios.filter((person) => person.id !== form.responsavelId).map((person) => (
+                      <label key={person.id} className="task-choice">
+                        <input type="checkbox" checked={form.colaboradoresIds.includes(person.id)} onChange={() => onToggle("colaboradoresIds", person.id)} disabled={disabled} />
+                        <span>{person.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
               )}
-            </fieldset>
+            </fieldset>}
             <label className="form-label task-form-wide">Notas Importantes / Observações
               <textarea className="form-input form-textarea task-notes-input" value={form.notasImportantes} onChange={(event) => onChange("notasImportantes", event.target.value)} disabled={disabled} />
             </label>

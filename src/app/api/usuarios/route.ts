@@ -10,6 +10,8 @@ const usuarioSelect = {
   nome: true,
   email: true,
   ativo: true,
+  podeAtribuirParaOutros: true,
+  podeConvidarColaboradores: true,
   unidadeId: true,
   cargoId: true,
   perfilId: true,
@@ -112,6 +114,16 @@ export async function POST(request: Request) {
     }
 
     const prisma = obterPrisma();
+    const requestedGovernance = readGovernancePermissions(body);
+    if (!requestedGovernance) {
+      return NextResponse.json({ error: "As permissões de atribuição e colaboração são inválidas." }, { status: 400 });
+    }
+    if (
+      !authorization.user.permissoes.administradorTotal &&
+      (requestedGovernance.podeAtribuirParaOutros || requestedGovernance.podeConvidarColaboradores)
+    ) {
+      return NextResponse.json({ error: "Somente um administrador total pode conceder permissões especiais de tarefas." }, { status: 403 });
+    }
     const existingUser = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
       select: { id: true },
@@ -156,8 +168,20 @@ export async function POST(request: Request) {
     }
 
     const senhaHash = await hash(senha, 12);
+    const profileName = relationIds.perfilId
+      ? await prisma.profile.findUnique({ where: { id: relationIds.perfilId }, select: { nome: true } })
+      : null;
+    const isAdminUser = email.toLocaleLowerCase("pt-BR") === "fdscosta@tjba.jus.br" || profileName?.nome === "Administrador";
     const usuario = await prisma.user.create({
-      data: { nome, email, senhaHash, ...relationIds, ativo: true },
+      data: {
+        nome,
+        email,
+        senhaHash,
+        ...relationIds,
+        ativo: true,
+        podeAtribuirParaOutros: isAdminUser || requestedGovernance.podeAtribuirParaOutros,
+        podeConvidarColaboradores: isAdminUser || requestedGovernance.podeConvidarColaboradores,
+      },
       select: usuarioSelect,
     });
 
@@ -172,6 +196,16 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: "Não foi possível cadastrar o usuário." }, { status: 500 });
   }
+}
+
+function readGovernancePermissions(body: Record<string, unknown>): {
+  podeAtribuirParaOutros: boolean;
+  podeConvidarColaboradores: boolean;
+} | null {
+  const podeAtribuirParaOutros = body.podeAtribuirParaOutros ?? false;
+  const podeConvidarColaboradores = body.podeConvidarColaboradores ?? false;
+  if (typeof podeAtribuirParaOutros !== "boolean" || typeof podeConvidarColaboradores !== "boolean") return null;
+  return { podeAtribuirParaOutros, podeConvidarColaboradores };
 }
 
 function isValidEmail(email: string): boolean {

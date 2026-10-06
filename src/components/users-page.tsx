@@ -36,6 +36,8 @@ type Usuario = {
   nome: string;
   email: string;
   ativo: boolean;
+  podeAtribuirParaOutros: boolean;
+  podeConvidarColaboradores: boolean;
   unidadeId: string | null;
   cargoId: string | null;
   perfilId: string | null;
@@ -50,6 +52,8 @@ type UserForm = {
   unidadeId: string;
   cargoId: string;
   perfilId: string;
+  podeAtribuirParaOutros: boolean;
+  podeConvidarColaboradores: boolean;
 };
 
 const emptyForm: UserForm = {
@@ -59,6 +63,8 @@ const emptyForm: UserForm = {
   unidadeId: "",
   cargoId: "",
   perfilId: "",
+  podeAtribuirParaOutros: false,
+  podeConvidarColaboradores: false,
 };
 
 function initials(name: string) {
@@ -84,9 +90,10 @@ function permissionCount(profile: Perfil | null) {
 }
 
 export default function UsuariosPage() {
-  const { hasPermission } = useAuthPermissions();
+  const { hasPermission, user: currentUser } = useAuthPermissions();
   const canCreate = hasPermission("usuarios", "criar");
   const canEdit = hasPermission("usuarios", "editar");
+  const canManageTaskGovernance = currentUser?.permissoes.administradorTotal === true;
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
@@ -186,6 +193,8 @@ export default function UsuariosPage() {
       unidadeId: user.unidadeId ?? "",
       cargoId: user.cargoId ?? "",
       perfilId: user.perfilId ?? "",
+      podeAtribuirParaOutros: user.podeAtribuirParaOutros,
+      podeConvidarColaboradores: user.podeConvidarColaboradores,
     });
     setError("");
     setModalOpen(true);
@@ -204,6 +213,8 @@ export default function UsuariosPage() {
         unidadeId: form.unidadeId || null,
         cargoId: form.cargoId || null,
         perfilId: form.perfilId || null,
+        podeAtribuirParaOutros: form.podeAtribuirParaOutros,
+        podeConvidarColaboradores: form.podeConvidarColaboradores,
       };
       const response = await fetch(
         editing ? `/api/usuarios/${editing.id}` : "/api/usuarios",
@@ -456,6 +467,28 @@ export default function UsuariosPage() {
                     ))}
                   </select>
                 </label>
+                <fieldset className="task-choice-fieldset user-form-field-wide">
+                  <legend>Governança de tarefas</legend>
+                  <label className="task-choice user-governance-option">
+                    <input
+                      type="checkbox"
+                      checked={form.podeAtribuirParaOutros}
+                      onChange={(event) => setForm({ ...form, podeAtribuirParaOutros: event.target.checked })}
+                      disabled={saving || !canManageTaskGovernance}
+                    />
+                    <span>Permitir atribuir tarefas a outros usuários</span>
+                  </label>
+                  <label className="task-choice user-governance-option">
+                    <input
+                      type="checkbox"
+                      checked={form.podeConvidarColaboradores}
+                      onChange={(event) => setForm({ ...form, podeConvidarColaboradores: event.target.checked })}
+                      disabled={saving || !canManageTaskGovernance}
+                    />
+                    <span>Permitir convidar colaboradores para tarefas</span>
+                  </label>
+                  {!canManageTaskGovernance && <small>Somente um administrador total pode alterar estas permissões.</small>}
+                </fieldset>
                 <label className="user-form-field user-form-field-wide">
                   <span>Senha {editing && <small>(deixe em branco para manter a senha atual)</small>}</span>
                   <input

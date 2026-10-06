@@ -24,7 +24,7 @@ import {
   Tags,
   Users,
 } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
@@ -115,26 +115,27 @@ export function AppFrame({ section, breadcrumbParent = "Gestão", children }: Ap
   const [assignedTaskCount, setAssignedTaskCount] = useState<number | null>(null);
   const [navigationScope, setNavigationScope] = useState<NavigationScope>("all");
 
-  useEffect(() => {
+  const refreshAssignedTaskCount = useCallback(async () => {
     if (!user || !canViewMenu("minhas-tarefas")) return;
-    let active = true;
-    void fetch("/api/tarefas/minhas-count", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as { total?: number; error?: string };
-        if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar a contagem de tarefas.");
-        if (typeof payload.total !== "number") throw new Error("A contagem de tarefas retornada é inválida.");
-        return payload.total;
-      })
-      .then((total) => {
-        if (active) setAssignedTaskCount(total);
-      })
-      .catch((error: unknown) => {
-        console.error("Falha ao carregar o badge de tarefas atribuídas:", error);
-      });
+    try {
+      const response = await fetch("/api/tarefas/minhas-count", { cache: "no-store" });
+      const payload = await response.json() as { total?: number; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar a contagem de tarefas.");
+      if (typeof payload.total !== "number") throw new Error("A contagem de tarefas retornada é inválida.");
+      setAssignedTaskCount(payload.total);
+    } catch (error) {
+      console.error("Falha ao carregar o badge de tarefas atribuídas:", error);
+    }
+  }, [canViewMenu, user]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void refreshAssignedTaskCount(), 0);
+    window.addEventListener("interdin-task-count-refresh", refreshAssignedTaskCount);
     return () => {
-      active = false;
+      window.clearTimeout(timer);
+      window.removeEventListener("interdin-task-count-refresh", refreshAssignedTaskCount);
     };
-  }, [user, canViewMenu]);
+  }, [refreshAssignedTaskCount]);
 
   function toggleSidebar() {
     try {

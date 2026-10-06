@@ -25,6 +25,8 @@ type UserRecord = {
   nome: string;
   email: string;
   ativo: boolean;
+  podeAtribuirParaOutros: boolean;
+  podeConvidarColaboradores: boolean;
   unidade: { id: string; nome: string } | null;
   perfil: {
     nome: string;
@@ -116,6 +118,8 @@ function userContext(user: UserRecord): AuthenticatedUser {
     id: user.id,
     nome: user.nome,
     email: user.email,
+    podeAtribuirParaOutros: user.podeAtribuirParaOutros,
+    podeConvidarColaboradores: user.podeConvidarColaboradores,
     unidadeId: user.unidade?.id ?? null,
     unidadeNome: user.unidade?.nome ?? null,
     perfilNome: profile?.nome ?? null,
@@ -131,6 +135,8 @@ async function findActiveUser(userId: string): Promise<AuthenticatedUser | null>
       nome: true,
       email: true,
       ativo: true,
+      podeAtribuirParaOutros: true,
+      podeConvidarColaboradores: true,
       unidade: { select: { id: true, nome: true } },
       perfil: {
         select: {
@@ -182,6 +188,8 @@ export async function autenticarUsuario(
       nome: true,
       email: true,
       ativo: true,
+      podeAtribuirParaOutros: true,
+      podeConvidarColaboradores: true,
       senhaHash: true,
       unidade: { select: { id: true, nome: true } },
       perfil: {

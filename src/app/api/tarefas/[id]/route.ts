@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
-import { isRecord, listSelect, parseTaskInput, taskDataWithCategory, taskVisibilityWhere, validateTaskRelations } from "@/lib/task-api";
+import { applyTaskGovernance, isRecord, listSelect, parseTaskInput, taskDataWithCategory, taskVisibilityWhere, validateTaskRelations } from "@/lib/task-api";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -44,6 +44,8 @@ async function updateTask(request: Request, { params }: RouteContext) {
     if (!isRecord(body)) return NextResponse.json({ error: "Corpo da requisição inválido." }, { status: 400 });
     const parsed = parseTaskInput(body, true);
     if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const governedData = applyTaskGovernance(parsed.data, authorization.user, true);
+    if ("error" in governedData) return NextResponse.json({ error: governedData.error }, { status: 403 });
 
     const prisma = obterPrisma();
     const existing = await prisma.task.findFirst({
@@ -51,13 +53,17 @@ async function updateTask(request: Request, { params }: RouteContext) {
         id,
         ...taskVisibilityWhere(authorization.user.id, authorization.user.unidadeId),
       },
-      select: { id: true },
+      select: { id: true, responsavelId: true },
     });
     if (!existing) return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
+    const responsibleId = governedData.data.responsavelId ?? existing.responsavelId;
+    if (responsibleId && governedData.data.colaboradoresIds?.includes(responsibleId)) {
+      return NextResponse.json({ error: "O responsável principal não pode também ser colaborador da tarefa." }, { status: 400 });
+    }
 
-    const relationError = await validateTaskRelations(prisma, parsed.data, authorization.user.id);
+    const relationError = await validateTaskRelations(prisma, governedData.data, authorization.user.id);
     if (relationError) return NextResponse.json({ error: relationError }, { status: 400 });
-    const taskData = await taskDataWithCategory(prisma, parsed.data);
+    const taskData = await taskDataWithCategory(prisma, governedData.data);
     if ("error" in taskData) return NextResponse.json({ error: taskData.error }, { status: 400 });
     const tarefa = await prisma.task.update({
       where: { id },

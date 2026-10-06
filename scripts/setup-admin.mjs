@@ -184,6 +184,10 @@ try {
         excluir: true,
       },
     });
+    await transaction.user.updateMany({
+      where: { perfilId: profile.id },
+      data: { podeAtribuirParaOutros: true, podeConvidarColaboradores: true },
+    });
 
     const matchingUsers = await transaction.user.findMany({
       where: { email: { equals: email, mode: "insensitive" } },
@@ -202,6 +206,8 @@ try {
           senhaHash: passwordHash,
           ativo: true,
           perfilId: profile.id,
+          podeAtribuirParaOutros: true,
+          podeConvidarColaboradores: true,
         },
         select: { id: true },
       });
@@ -215,6 +221,8 @@ try {
         senhaHash: passwordHash,
         ativo: true,
         perfilId: profile.id,
+        podeAtribuirParaOutros: true,
+        podeConvidarColaboradores: true,
       },
       select: { id: true },
     });

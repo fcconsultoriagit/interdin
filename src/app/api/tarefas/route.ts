@@ -7,6 +7,7 @@ import {
   isRecord,
   listSelect,
   addDays,
+  applyTaskGovernance,
   parseDate,
   parsePositiveInteger,
   parseTaskInput,
@@ -175,11 +176,13 @@ export async function POST(request: Request) {
     if (!titulo) return NextResponse.json({ error: "Informe um título para a tarefa." }, { status: 400 });
 
     const prisma = obterPrisma();
-    const taskData = await taskDataWithCategory(prisma, parsed.data);
+    const governedData = applyTaskGovernance(parsed.data, authorization.user, false);
+    if ("error" in governedData) return NextResponse.json({ error: governedData.error }, { status: 403 });
+    const taskData = await taskDataWithCategory(prisma, governedData.data);
     if ("error" in taskData) {
       return NextResponse.json({ error: taskData.error }, { status: 400 });
     }
-    const relationError = await validateTaskRelations(prisma, parsed.data, authorization.user.id);
+    const relationError = await validateTaskRelations(prisma, governedData.data, authorization.user.id);
     if (relationError) {
       return NextResponse.json({ error: relationError }, { status: 400 });
     }

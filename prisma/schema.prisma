@@ -14,6 +14,8 @@ model User {
   email     String   @unique
   senhaHash String
   ativo     Boolean  @default(true)
+  podeAtribuirParaOutros Boolean @default(false)
+  podeConvidarColaboradores Boolean @default(false)
 
   // Relações independentes
   unidadeId String?
