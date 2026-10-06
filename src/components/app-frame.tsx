@@ -61,6 +61,16 @@ const navigation = [
   },
 ];
 
+const navigationScopes = [
+  { value: "all", label: "Visão Completa" },
+  { value: "VISÃO GERAL", label: "Visão Geral" },
+  { value: "TAREFAS", label: "Tarefas" },
+  { value: "OPERAÇÕES E ANÁLISES", label: "Operações e Análises" },
+  { value: "CONFIGURAÇÕES", label: "Configurações" },
+] as const;
+
+type NavigationScope = (typeof navigationScopes)[number]["value"];
+
 const sidebarPreferenceKey = "interdin-sidebar-collapsed";
 
 function subscribeToSidebarPreference(callback: () => void) {
@@ -100,6 +110,7 @@ export function AppFrame({ section, children }: AppFrameProps) {
   );
   const [logoutError, setLogoutError] = useState("");
   const [assignedTaskCount, setAssignedTaskCount] = useState<number | null>(null);
+  const [navigationScope, setNavigationScope] = useState<NavigationScope>("all");
 
   useEffect(() => {
     if (!user || !canViewMenu("minhas-tarefas")) return;
@@ -162,9 +173,9 @@ export function AppFrame({ section, children }: AppFrameProps) {
             </span>
           </a>
           <span className="identity-divider" aria-hidden="true" />
-          <div className="system-identity" aria-label="InterDin - COATE">
+          <div className="system-identity" aria-label="InterDin | COATE">
             <span>InterDin</span>
-            <span className="system-identity-unit">– COATE</span>
+            <span className="system-identity-unit">COATE</span>
           </div>
         </div>
         <nav className="institutional-quick-links" aria-label="Links institucionais">
@@ -197,16 +208,32 @@ export function AppFrame({ section, children }: AppFrameProps) {
               {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
           </div>
-          <div className="workspace-switcher">
+          <label className="workspace-switcher">
             <span className="workspace-avatar">I</span>
             <span className="workspace-copy">
               <strong>Interdin</strong>
-              <small>Workspace principal</small>
+              <small>{navigationScopes.find(({ value }) => value === navigationScope)?.label}</small>
             </span>
             <ChevronDown size={15} />
-          </div>
+            <select
+              className="workspace-scope-control"
+              aria-label="Escopo da navegação"
+              value={navigationScope}
+              onChange={(event) => {
+                const selectedScope = navigationScopes.find(({ value }) => value === event.target.value);
+                if (selectedScope) setNavigationScope(selectedScope.value);
+              }}
+            >
+              {navigationScopes.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
           <nav className="main-nav" aria-label="Menu principal">
-            {navigation.filter((group) => group.items.some(({ resource }) => canViewMenu(resource))).map((group) => (
+            {navigation.filter((group) => (
+              (navigationScope === "all" || group.label === navigationScope)
+              && group.items.some(({ resource }) => canViewMenu(resource))
+            )).map((group) => (
               <section className="nav-group" key={group.label} aria-label={group.label}>
                 <h2 className="nav-group-label">{group.label}</h2>
                 <div className="nav-group-items">
@@ -280,11 +307,6 @@ export function AppFrame({ section, children }: AppFrameProps) {
               <span>
                 Suporte institucional <strong>SETIM · Tecnologia da Informação</strong>
               </span>
-              <nav aria-label="Links úteis">
-                <a href="https://www.tjba.jus.br/portal/">Portal TJBA</a>
-                <a href="https://www.tjba.jus.br/portal/transparencia/">Transparência</a>
-                <a href="https://www.tjba.jus.br/portal/ouvidoria/">Ouvidoria</a>
-              </nav>
               <span className="app-version">InterDin · Versão 1.0.0</span>
             </div>
           </footer>

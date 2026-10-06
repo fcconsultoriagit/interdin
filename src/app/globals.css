@@ -70,14 +70,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   align-items: center;
   gap: 27px;
 }
-.institutional-quick-links a,
-.footer-institutional-details nav a {
+.institutional-quick-links a {
   color: #f7f8fa;
   font-size: 14px;
   transition: color .16s;
 }
-.institutional-quick-links a:hover,
-.footer-institutional-details nav a:hover { color: var(--gold); }
+.institutional-quick-links a:hover { color: var(--gold); }
 .institutional-identification {
   display: flex;
   flex: 0 0 auto;
@@ -227,6 +225,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .brand-dot { color: var(--dark-gold); }
 .workspace-switcher {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -234,7 +233,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 11px 10px;
+  cursor: pointer;
+  transition: border-color .16s, background .16s;
 }
+.workspace-switcher:hover { border-color: #d5c29e; background: #fdfbf7; }
+.workspace-switcher:focus-within { outline: 3px solid var(--gold); outline-offset: 3px; }
+.workspace-scope-control { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; opacity: 0; }
 .workspace-avatar, .summary-icon, .modal-icon, .empty-state-icon {
   display: grid;
   flex: 0 0 auto;
@@ -248,8 +252,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .workspace-copy strong { overflow: hidden; color: var(--navy); font-size: 16px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-copy small { color: var(--muted); font-size: 14px; }
 .workspace-switcher > svg { color: var(--muted); }
-.main-nav { display: grid; gap: 16px; margin-top: 25px; }
-.nav-group-label { margin: 0 10px 7px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .07em; line-height: 1.4; }
+.main-nav { display: grid; gap: 11px; margin-top: 20px; }
+.nav-group + .nav-group { border-top: 1px solid #edf0f3; padding-top: 12px; }
+.nav-group-label { margin: 0 10px 8px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .07em; line-height: 1.4; }
 .nav-group-items { display: grid; gap: 4px; }
 .nav-item {
   position: relative;
@@ -793,16 +798,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .feedback button { display: grid; width: 32px; height: 32px; margin-left: auto; place-items: center; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
 .error-feedback { border-color: #e9cecd; background: #fcf5f4; color: #762d2a; }
 .success-feedback { border-color: #cfe2d6; background: #f1f6f2; color: #285d40; }
-.institutional-footer { margin-top: auto; border-top: 4px solid var(--gold); background: var(--navy); color: #fff; padding: 23px 40px 25px; }
-.footer-brand-signature { display: flex; min-height: 45px; align-items: center; gap: 17px; color: #fff; }
-.footer-tjba { font-family: var(--font-institutional); font-size: 21px; font-weight: 600; letter-spacing: .04em; }
-.footer-setim { color: #e7ebf1; font-size: 16px; font-weight: 650; letter-spacing: .1em; }
+.institutional-footer { margin-top: auto; border-top: 4px solid var(--gold); background: var(--navy); color: #fff; padding: 12px 40px 14px; }
+.footer-brand-signature { display: flex; min-height: 34px; align-items: center; gap: 17px; color: #fff; }
+.footer-tjba, .footer-setim { font-family: var(--font-institutional); font-size: 16px; font-weight: 650; letter-spacing: .1em; }
+.footer-setim { color: #e7ebf1; }
 .footer-interdin { color: var(--gold); font-family: var(--font-institutional); font-size: 19px; font-weight: 600; }
 .signature-divider { width: 1px; height: 25px; background: #ffffff62; }
-.footer-institutional-details { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 13px 24px; border-top: 1px solid #ffffff35; margin-top: 14px; padding-top: 15px; color: #e5eaf0; font-size: 14px; }
+.footer-institutional-details { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; border-top: 1px solid #ffffff35; margin-top: 8px; padding-top: 8px; color: #e5eaf0; font-size: 14px; }
 .footer-institutional-details > span:first-child { display: flex; flex-wrap: wrap; gap: 7px; }
 .footer-institutional-details strong { color: #fff; font-weight: 650; }
-.footer-institutional-details nav { display: flex; flex-wrap: wrap; gap: 20px; }
 .app-version { color: #d2d9e1; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #07182bb8; padding: 20px; }
 .create-modal { width: min(100%, 480px); border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 25px; box-shadow: 0 24px 70px #07182b40; }
@@ -857,7 +861,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .summary-card strong { font-size: 21px; }
   .dashboard-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace-grid { grid-template-columns: 175px minmax(0, 1fr); }
-  .footer-institutional-details nav { gap: 14px; }
 }
 .module-placeholder { align-items: flex-start; flex-direction: column; padding: 22px; }
 @media (max-width: 600px) {
@@ -940,13 +943,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .permissions-title-row { align-items: flex-start; }
   .permissions-footer { align-items: flex-start; flex-direction: column; }
   .page-footer { align-items: flex-start; flex-direction: column; font-size: 14px; }
-  .institutional-footer { padding: 19px 15px 22px; }
+  .institutional-footer { padding: 10px 15px 12px; }
   .footer-brand-signature { gap: 11px; }
-  .footer-tjba { font-size: 18px; }
-  .footer-setim { font-size: 14px; }
   .footer-interdin { font-size: 16px; }
-  .footer-institutional-details { align-items: flex-start; flex-direction: column; gap: 13px; font-size: 14px; }
-  .footer-institutional-details nav { gap: 15px; }
+  .footer-institutional-details { align-items: flex-start; flex-direction: column; gap: 8px; font-size: 14px; }
 }
 
 @media print {
