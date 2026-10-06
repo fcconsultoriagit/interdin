@@ -384,7 +384,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
   const activeFilters = [statusFilter, categoryFilter, responsibleFilter, unitFilter, dateFrom, dateTo].filter(Boolean).length;
 
   return (
-    <AppFrame section={view === "kanban" ? "Quadro Kanban" : "Todas as Tarefas"}>
+    <AppFrame section={view === "kanban" ? "Quadro Kanban" : "Todas as Tarefas"} breadcrumbParent="Tarefas">
       <div className="page-wrap task-page">
         <div className="page-heading task-page-heading">
           <div>
@@ -779,13 +779,13 @@ function TaskModal({
               <input type="checkbox" checked={form.privada} onChange={(event) => onChange("privada", event.target.checked)} disabled={disabled} />
               <span><strong>Tarefa privada</strong><small>Somente criador, responsável e colaboradores.</small></span>
             </label>
-            <label className="form-label">Data da Tarefa
+            <label className="form-label task-form-half">Data da Tarefa
               <input className="form-input" type="datetime-local" value={form.dataTarefa} onChange={(event) => onChange("dataTarefa", event.target.value)} required disabled={disabled} />
             </label>
-            <label className="form-label">Data/Hora de Entrega
+            <label className="form-label task-form-half">Data/Hora de Entrega
               <input className="form-input" type="datetime-local" value={form.prazo} onChange={(event) => onChange("prazo", event.target.value)} disabled={disabled} />
             </label>
-            <label className="form-label w-full">Unidade principal
+            <label className="form-label task-form-wide w-full">Unidade principal
               <select className="form-input w-full" value={form.unidadeId} onChange={(event) => onChange("unidadeId", event.target.value)} disabled={disabled}>
                 <option value="">Sem unidade</option>
                 {options.unidades.map((unit) => <option key={unit.id} value={unit.id}>{unit.sigla} · {unit.nome}</option>)}

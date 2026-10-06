@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { ListTodo } from "lucide-react";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 import { PageAccessGuard } from "@/components/page-access-guard";
+
+export const metadata: Metadata = {
+  title: "Minhas Tarefas | InterDin",
+};
 
 export default function MinhasTarefasPage() {
   return (

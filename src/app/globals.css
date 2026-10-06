@@ -537,6 +537,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .task-form-grid .form-label { margin-top: 12px; }
 .task-form-grid .form-label > .form-input { display: block; margin-top: 6px; }
 .task-form-wide { grid-column: 1 / -1; }
+.task-form-half { grid-column: span 2; }
 .task-form-title { grid-column: span 3; }
 .task-private-toggle { display: flex; min-width: 0; align-items: center; gap: 9px; align-self: end; border: 1px solid var(--line); border-radius: 12px; margin-top: 12px; padding: 10px; cursor: pointer; }
 .task-private-toggle input, .task-choice input { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--navy); }
@@ -935,7 +936,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .filter-select-label select, .filter-select-label.status-filter select { width: 100%; }
   .task-modal { max-height: 85vh; max-height: 85dvh; }
   .task-form-grid { grid-template-columns: 1fr; }
-  .task-form-title, .task-form-wide { grid-column: auto; }
+  .task-form-title, .task-form-wide, .task-form-half { grid-column: auto; }
   .task-modal-header { gap: 10px; padding: 14px 12px; }
   .task-modal-header .modal-icon { width: 39px; height: 39px; }
   .task-modal-header h2 { font-size: 19px; }

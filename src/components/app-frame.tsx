@@ -99,10 +99,11 @@ function getServerSidebarPreference() {
 
 type AppFrameProps = {
   section: string;
+  breadcrumbParent?: string;
   children: ReactNode;
 };
 
-export function AppFrame({ section, children }: AppFrameProps) {
+export function AppFrame({ section, breadcrumbParent = "Gestão", children }: AppFrameProps) {
   const router = useRouter();
   const { user, canViewMenu } = useAuthPermissions();
   const sidebarCollapsed = useSyncExternalStore(
@@ -279,7 +280,7 @@ export function AppFrame({ section, children }: AppFrameProps) {
         <main className="main-content">
           <header className="topbar">
             <div className="breadcrumbs">
-              <span>Gestão</span>
+              <span>{breadcrumbParent}</span>
               <span className="crumb-separator">/</span>
               <strong>{section}</strong>
             </div>

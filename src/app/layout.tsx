@@ -16,7 +16,7 @@ const montserratInstitutional = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Perfis e permissões | Interdin",
+  title: "Visão Geral | InterDin",
   description: "Gerencie perfis de acesso e permissões da plataforma Interdin.",
 };
 
