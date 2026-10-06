@@ -305,7 +305,7 @@ export function AppFrame({ section, children }: AppFrameProps) {
             </div>
             <div className="footer-institutional-details">
               <span>
-                Suporte institucional <strong>SETIM · Tecnologia da Informação</strong>
+                Interação Dinâmica <strong>SETIM · Tecnologia da Informação</strong>
               </span>
               <span className="app-version">InterDin · Versão 1.0.0</span>
             </div>
