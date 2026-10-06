@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
-import { listSelect } from "@/lib/task-api";
+import { listSelect, taskWithAttachmentCount } from "@/lib/task-api";
 
 const activeTaskWhere = { status: { notIn: ["CONCLUIDO", "ARQUIVADA"] } };
 
@@ -68,9 +68,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       tarefas: {
-        atribuídas,
-        ondeColaboro: colaboracoes,
-        criadasPorMim: criadas,
+        atribuídas: atribuídas.map(taskWithAttachmentCount),
+        ondeColaboro: colaboracoes.map(taskWithAttachmentCount),
+        criadasPorMim: criadas.map(taskWithAttachmentCount),
       },
       contagens: {
         atribuídas: atribuídasCount,

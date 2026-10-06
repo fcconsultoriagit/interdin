@@ -12,6 +12,7 @@ import {
   parsePositiveInteger,
   parseTaskInput,
   taskDataWithCategory,
+  taskWithAttachmentCount,
   taskStatuses,
   taskVisibilityWhere,
   validateTaskRelations,
@@ -136,7 +137,7 @@ export async function GET(request: Request) {
     }
 
     const tarefasComCategoriaNula = tarefas.map((tarefa) => ({
-      ...tarefa,
+      ...taskWithAttachmentCount(tarefa),
       category: tarefa.category ?? null,
     }));
 
@@ -198,11 +199,12 @@ export async function POST(request: Request) {
       });
       const date = created.dataTarefa;
       const codigo = `#${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(created.numero).padStart(4, "0")}`;
-      return transaction.task.update({
+      const tarefa = await transaction.task.update({
         where: { id: created.id },
         data: { codigo },
         select: listSelect,
       });
+      return taskWithAttachmentCount(tarefa);
     }, { maxWait: 10000, timeout: 60000 });
 
     return NextResponse.json({ tarefa }, { status: 201 });

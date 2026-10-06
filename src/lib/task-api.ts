@@ -37,7 +37,15 @@ export const listSelect = {
   responsavel: { select: { id: true, nome: true } },
   criador: { select: { id: true, nome: true } },
   unidade: { select: { id: true, nome: true, sigla: true } },
+  _count: { select: { anexos: true } },
 } satisfies Prisma.TaskSelect;
+
+export function taskWithAttachmentCount(
+  task: Prisma.TaskGetPayload<{ select: typeof listSelect }>,
+) {
+  const { _count, ...fields } = task;
+  return { ...fields, anexosCount: _count.anexos };
+}
 
 export function taskVisibilityWhere(userId: string, unitId: string | null): Prisma.TaskWhereInput {
   return {

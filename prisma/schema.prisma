@@ -29,6 +29,7 @@ model User {
 
   tarefasCriadas       Task[] @relation("TaskCreator")
   tarefasResponsaveis  Task[] @relation("TaskResponsible")
+  anexosEnviados       TaskAttachment[] @relation("TaskAttachmentUploader")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -150,6 +151,7 @@ model Task {
   unidade               Unidade?  @relation(fields: [unidadeId], references: [id], onDelete: SetNull)
   unidadesCompartilhadas String[] @default([])
   colaboradoresIds      String[]  @default([])
+  anexos                TaskAttachment[]
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -161,6 +163,24 @@ model Task {
   @@index([criadorId])
   @@index([createdAt])
   @@map("tarefas")
+}
+
+model TaskAttachment {
+  id          String   @id @default(cuid())
+  nome        String
+  nomeOriginal String
+  url         String
+  mimeType    String?
+  tamanho     Int?
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  enviadoPorId String?
+  enviadoPor  User?    @relation("TaskAttachmentUploader", fields: [enviadoPorId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([enviadoPorId])
+  @@map("anexos_tarefas")
 }
 
 model Cargo {

@@ -10,22 +10,30 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Download,
   Eye,
+  File,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
   FilePlus2,
   Filter,
   Handshake,
   ListChecks,
   ListTodo,
   LoaderCircle,
+  Paperclip,
   Pencil,
   Plus,
   Printer,
   Search,
   Columns3,
   ShieldAlert,
+  Trash2,
+  Upload,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -51,6 +59,19 @@ type TaskPriority = (typeof priorityOptions)[number]["value"];
 type UserOption = { id: string; nome: string };
 type UnitOption = { id: string; nome: string; sigla: string };
 type CategoryOption = { id: string; sigla: string; nome: string; cor: string };
+type TaskAttachment = {
+  id: string;
+  nome: string;
+  nomeOriginal: string;
+  url: string;
+  mimeType: string | null;
+  tamanho: number | null;
+  taskId: string;
+  enviadoPorId: string | null;
+  createdAt: string;
+  enviadoPor: UserOption | null;
+};
+type PendingAttachment = { id: string; file: File; nome: string };
 type Task = {
   id: string;
   numero: number;
@@ -73,6 +94,7 @@ type Task = {
   unidadesCompartilhadas: string[];
   colaboradoresIds: string[];
   createdAt: string;
+  anexosCount: number;
   responsavel: UserOption | null;
   criador: UserOption;
   unidade: UnitOption | null;
@@ -153,6 +175,31 @@ function formatDate(value: string | null, withTime = false) {
   }).format(new Date(value));
 }
 
+function formatFileSize(size: number | null) {
+  if (size === null) return "Tamanho indisponível";
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+}
+
+function attachmentIcon(fileName: string) {
+  const extension = fileName.split(".").pop()?.toLocaleLowerCase("en-US");
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(extension ?? "")) return FileImage;
+  if (["xls", "xlsx", "ods", "csv"].includes(extension ?? "")) return FileSpreadsheet;
+  if (["pdf", "doc", "docx", "ppt", "pptx", "odt", "txt"].includes(extension ?? "")) return FileText;
+  return File;
+}
+
+async function uploadPendingAttachments(taskId: string, attachments: PendingAttachment[]) {
+  if (attachments.length === 0) return;
+  const formData = new FormData();
+  formData.set("taskId", taskId);
+  formData.set("names", JSON.stringify(attachments.map(({ nome }) => nome)));
+  for (const attachment of attachments) formData.append("files", attachment.file);
+  const response = await fetch(`/api/upload?taskId=${encodeURIComponent(taskId)}`, { method: "POST", body: formData });
+  const result = await response.json() as { error?: string };
+  if (!response.ok) throw new Error(result.error ?? "Não foi possível enviar os anexos.");
+}
+
 function getStatusLabel(status: TaskStatus) {
   return statusOptions.find((option) => option.value === status)?.label ?? status;
 }
@@ -209,6 +256,8 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [attachmentTask, setAttachmentTask] = useState<Task | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [form, setForm] = useState<TaskForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [movingTaskIds, setMovingTaskIds] = useState<Set<string>>(() => new Set());
@@ -273,6 +322,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       unidadeId: user?.unidadeId ?? "",
       responsavelId: user?.id ?? "",
     });
+    setPendingAttachments([]);
     setError("");
     setModalOpen(true);
   }
@@ -281,6 +331,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
     const taskCategory = task.category;
     setEditingTask(readOnly ? null : task);
     setViewingTask(readOnly ? task : null);
+    setPendingAttachments([]);
     setForm({
       titulo: task.titulo,
       dataTarefa: dateTimeLocalValue(new Date(task.dataTarefa)),
@@ -348,8 +399,20 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { tarefa?: Task; error?: string };
       if (!response.ok) throw new Error(result.error ?? "Não foi possível salvar a tarefa.");
+      const savedTask = result.tarefa;
+      const taskId = editingTask?.id ?? savedTask?.id;
+      if (!taskId) throw new Error("A resposta da API não contém a tarefa salva.");
+      if (!editingTask && savedTask) setEditingTask(savedTask);
+      if (pendingAttachments.length > 0) {
+        try {
+          await uploadPendingAttachments(taskId, pendingAttachments);
+          setPendingAttachments([]);
+        } catch (uploadError) {
+          throw new Error(`A tarefa foi salva, mas os anexos não foram enviados. ${uploadError instanceof Error ? uploadError.message : ""} Tente salvar novamente para reenviar.`);
+        }
+      }
       setModalOpen(false);
       notifyAssignedTaskCountRefresh();
       setNotice(editingTask ? "Tarefa atualizada com sucesso." : "Tarefa criada com sucesso.");
@@ -550,6 +613,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
                 movingTaskIds={movingTaskIds}
                 onView={(task) => openTask(task, true)}
                 onEdit={(task) => openTask(task, false)}
+                onAttachments={setAttachmentTask}
                 onMove={moveTask}
               />
             ))}
@@ -582,7 +646,8 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
             <div className="task-cards">
               {tasks.map((task) => (
                 <TaskCard key={task.id} task={task} canView={canView} canEdit={canEdit}
-                  onView={() => openTask(task, true)} onEdit={() => openTask(task, false)} />
+                  onView={() => openTask(task, true)} onEdit={() => openTask(task, false)}
+                  onAttachments={() => setAttachmentTask(task)} />
               ))}
             </div>
           )}
@@ -610,11 +675,33 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
           error={error}
           readOnly={viewingTask !== null}
           editing={editingTask !== null}
-          onClose={() => { setModalOpen(false); setError(""); }}
+          onClose={() => {
+            setModalOpen(false);
+            setError("");
+            void loadTasks(new AbortController().signal);
+          }}
           onChange={updateForm}
           onResponsibleChange={updateResponsible}
           onToggle={toggleSelection}
+          taskId={editingTask?.id ?? viewingTask?.id ?? null}
+          canManageAttachments={editingTask
+            ? canEdit || (canCreate && editingTask.criadorId === user?.id)
+            : canCreate}
+          canDeleteAttachments={canEdit}
+          pendingAttachments={pendingAttachments}
+          onPendingAttachmentsChange={setPendingAttachments}
           onSubmit={saveTask}
+        />,
+        document.body,
+      )}
+      {attachmentTask && portalReady && createPortal(
+        <TaskAttachmentsDialog
+          task={attachmentTask}
+          canDelete={canEdit}
+          onClose={() => {
+            setAttachmentTask(null);
+            void loadTasks(new AbortController().signal);
+          }}
         />,
         document.body,
       )}
@@ -646,6 +733,8 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [attachmentTask, setAttachmentTask] = useState<Task | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [form, setForm] = useState<TaskForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const portalReady = useSyncExternalStore(
@@ -712,6 +801,7 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
   function openTask(task: Task, readOnly: boolean) {
     setEditingTask(readOnly ? null : task);
     setViewingTask(readOnly ? task : null);
+    setPendingAttachments([]);
     setForm({
       titulo: task.titulo,
       dataTarefa: dateTimeLocalValue(new Date(task.dataTarefa)),
@@ -779,8 +869,16 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
           dataTarefa: new Date(form.dataTarefa).toISOString(),
         }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { tarefa?: Task; error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Não foi possível atualizar a tarefa.");
+      if (pendingAttachments.length > 0) {
+        try {
+          await uploadPendingAttachments(editingTask.id, pendingAttachments);
+          setPendingAttachments([]);
+        } catch (uploadError) {
+          throw new Error(`A tarefa foi atualizada, mas os anexos não foram enviados. ${uploadError instanceof Error ? uploadError.message : ""} Tente salvar novamente para reenviar.`);
+        }
+      }
       setModalOpen(false);
       notifyAssignedTaskCountRefresh();
       setNotice("Tarefa atualizada com sucesso.");
@@ -871,6 +969,7 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
                   canEdit={canEdit}
                   onView={() => openTask(task, true)}
                   onEdit={() => openTask(task, false)}
+                  onAttachments={() => setAttachmentTask(task)}
                 />
               ))}
             </div>
@@ -895,11 +994,31 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
           error={error}
           readOnly={viewingTask !== null}
           editing={editingTask !== null}
-          onClose={() => { setModalOpen(false); setError(""); }}
+          onClose={() => {
+            setModalOpen(false);
+            setError("");
+            void loadTasks();
+          }}
           onChange={updateForm}
           onResponsibleChange={updateResponsible}
           onToggle={toggleSelection}
+          taskId={editingTask?.id ?? viewingTask?.id ?? null}
+          canManageAttachments={Boolean(editingTask && canEdit)}
+          canDeleteAttachments={canEdit}
+          pendingAttachments={pendingAttachments}
+          onPendingAttachmentsChange={setPendingAttachments}
           onSubmit={saveTask}
+        />,
+        document.body,
+      )}
+      {attachmentTask && portalReady && createPortal(
+        <TaskAttachmentsDialog
+          task={attachmentTask}
+          canDelete={canEdit}
+          onClose={() => {
+            setAttachmentTask(null);
+            void loadTasks();
+          }}
         />,
         document.body,
       )}
@@ -914,12 +1033,13 @@ function compareTaskDeadlines(left: Task, right: Task) {
   return new Date(left.prazo).getTime() - new Date(right.prazo).getTime();
 }
 
-function TaskCard({ task, canView, canEdit, onView, onEdit }: {
+function TaskCard({ task, canView, canEdit, onView, onEdit, onAttachments }: {
   task: Task;
   canView: boolean;
   canEdit: boolean;
   onView: () => void;
   onEdit: () => void;
+  onAttachments: () => void;
 }) {
   return (
     <article className={`task-card status-border-${task.status.toLowerCase()}`}>
@@ -931,8 +1051,10 @@ function TaskCard({ task, canView, canEdit, onView, onEdit }: {
           <span className={`task-priority-badge priority-${task.prioridade.toLowerCase()}`}>{getPriorityLabel(task.prioridade)}</span>
           {task.unidade && <span className="task-unit-badge">{task.unidade.sigla}</span>}
           {task.privada && <span className="task-private-badge"><ShieldAlert size={13} /> Privada</span>}
+          {task.anexosCount > 0 && <span className="task-attachment-count"><Paperclip size={13} /> {task.anexosCount}</span>}
           {(canView || canEdit) && (
             <div className="task-card-actions">
+              {canView && <button type="button" className="icon-button" aria-label={`Ver anexos de ${task.titulo}`} title={`Ver Anexos (${task.anexosCount})`} onClick={onAttachments}><Paperclip size={16} /></button>}
               {canView && <button type="button" className="icon-button" aria-label={`Visualizar ${task.titulo}`} title="Visualizar" onClick={onView}><Eye size={17} /></button>}
               {canEdit && <button type="button" className="icon-button" aria-label={`Editar ${task.titulo}`} title="Editar" onClick={onEdit}><Pencil size={16} /></button>}
             </div>
@@ -974,6 +1096,7 @@ function KanbanColumn({
   movingTaskIds,
   onView,
   onEdit,
+  onAttachments,
   onMove,
 }: {
   status: TaskStatus;
@@ -985,6 +1108,7 @@ function KanbanColumn({
   movingTaskIds: Set<string>;
   onView: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onAttachments: (task: Task) => void;
   onMove: (task: Task, status: TaskStatus) => void;
 }) {
   const statusIndex = kanbanStatuses.findIndex((item) => item.value === status);
@@ -1003,6 +1127,7 @@ function KanbanColumn({
             <div className="kanban-task-topline">
               <span className="task-code">{task.codigo ?? `#${task.numero}`}</span>
               <span className={`task-priority-badge priority-${task.prioridade.toLowerCase()}`}>{getPriorityLabel(task.prioridade)}</span>
+              {task.anexosCount > 0 && <span className="task-attachment-count"><Paperclip size={12} /> {task.anexosCount}</span>}
             </div>
             <h3>{task.titulo}</h3>
             {(task.category || task.categoria) && <span className="task-category-badge kanban-category" style={categoryBadgeStyle(task.category)}>{task.category ? `[${task.category.sigla}] ${task.category.nome}` : task.categoria}</span>}
@@ -1023,6 +1148,7 @@ function KanbanColumn({
               {(canView || canEdit) && (
                 <div className="kanban-open-actions">
                   {canView && <button className="icon-button" type="button" aria-label={`Visualizar ${task.titulo}`} title="Visualizar" onClick={() => onView(task)}><Eye size={15} /></button>}
+                  {canView && <button className="icon-button" type="button" aria-label={`Ver anexos de ${task.titulo}`} title={`Ver Anexos (${task.anexosCount})`} onClick={() => onAttachments(task)}><Paperclip size={15} /></button>}
                   {canEdit && <button className="icon-button" type="button" aria-label={`Editar ${task.titulo}`} title="Editar" onClick={() => onEdit(task)}><Pencil size={15} /></button>}
                 </div>
               )}
@@ -1058,6 +1184,175 @@ function KanbanColumn({
   );
 }
 
+function TaskAttachmentPanel({
+  taskId,
+  allowUpload,
+  allowDelete,
+  pending,
+  onPendingChange,
+  disabled = false,
+}: {
+  taskId: string | null;
+  allowUpload: boolean;
+  allowDelete: boolean;
+  pending: PendingAttachment[];
+  onPendingChange: (attachments: PendingAttachment[]) => void;
+  disabled?: boolean;
+}) {
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [loading, setLoading] = useState(Boolean(taskId));
+  const [error, setError] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!taskId) return;
+    const controller = new AbortController();
+    void fetch(`/api/tarefas/${taskId}/anexos`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { anexos?: TaskAttachment[]; error?: string };
+        if (!response.ok) throw new Error(result.error ?? "Não foi possível carregar os anexos.");
+        setAttachments(result.anexos ?? []);
+      })
+      .catch((loadError: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os anexos.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [taskId]);
+
+  function addFiles(files: FileList | null) {
+    if (!files) return;
+    const added = Array.from(files).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      nome: file.name.replace(/\.[^.]+$/, "") || file.name,
+    }));
+    onPendingChange([...pending, ...added]);
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  async function removeAttachment(attachment: TaskAttachment) {
+    if (!taskId) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/tarefas/${taskId}/anexos/${attachment.id}`, { method: "DELETE" });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Não foi possível excluir o anexo.");
+      setAttachments((current) => current.filter(({ id }) => id !== attachment.id));
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Não foi possível excluir o anexo.");
+    }
+  }
+
+  return (
+    <section className="task-attachments-section" aria-label="Arquivos anexados">
+      <div className="task-attachments-heading">
+        <div><Paperclip size={17} /><strong>Arquivos Anexados</strong></div>
+        {allowUpload && (
+          <>
+            <input
+              ref={fileInput}
+              className="visually-hidden"
+              type="file"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.odt,.ods"
+              onChange={(event) => addFiles(event.target.files)}
+            />
+            <button className="button button-secondary task-attachment-add" type="button" onClick={() => fileInput.current?.click()}>
+              <Upload size={15} /> Anexar Arquivos
+            </button>
+          </>
+        )}
+      </div>
+
+      {error && <p className="task-attachment-error" role="alert">{error}</p>}
+      {loading && <p className="task-attachment-empty">Carregando anexos...</p>}
+      {!loading && taskId && attachments.length === 0 && pending.length === 0 && (
+        <p className="task-attachment-empty">Nenhum arquivo anexado.</p>
+      )}
+      {attachments.length > 0 && (
+        <ul className="task-attachment-list">
+          {attachments.map((attachment) => {
+            const Icon = attachmentIcon(attachment.nomeOriginal);
+            const href = `/api/tarefas/${taskId}/anexos/${attachment.id}`;
+            return (
+              <li key={attachment.id} className="task-attachment-item">
+                <Icon size={19} />
+                <div className="task-attachment-copy">
+                  <strong title={attachment.nome}>{attachment.nome}</strong>
+                  <small>{formatFileSize(attachment.tamanho)} · {formatDate(attachment.createdAt, true)}{attachment.enviadoPor ? ` · ${attachment.enviadoPor.nome}` : ""}</small>
+                </div>
+                <a href={`${href}?inline=true`} target="_blank" rel="noopener noreferrer" aria-label={`Visualizar ${attachment.nome}`} title="Visualizar"><Eye size={16} /></a>
+                <a href={href} download={attachment.nomeOriginal} aria-label={`Baixar ${attachment.nome}`} title="Download"><Download size={16} /></a>
+                {allowDelete && <button type="button" disabled={disabled} onClick={() => void removeAttachment(attachment)} aria-label={`Excluir ${attachment.nome}`} title="Excluir"><Trash2 size={16} /></button>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {pending.length > 0 && (
+        <ul className="task-attachment-list task-attachment-pending">
+          {pending.map(({ id, file, nome }) => {
+            const Icon = attachmentIcon(file.name);
+            return (
+              <li key={id} className="task-attachment-item">
+                <Icon size={19} />
+                <label className="task-attachment-copy">
+                  <span className="visually-hidden">Nome descritivo de {file.name}</span>
+                  <input
+                    className="form-input"
+                    value={nome}
+                    maxLength={180}
+                    required
+                    disabled={disabled}
+                    onChange={(event) => onPendingChange(pending.map((item) => item.id === id ? { ...item, nome: event.target.value } : item))}
+                  />
+                  <small>{file.name} · {formatFileSize(file.size)}</small>
+                </label>
+                <button type="button" disabled={disabled} onClick={() => onPendingChange(pending.filter((item) => item.id !== id))} aria-label={`Remover ${file.name} da fila`} title="Remover arquivo"><X size={16} /></button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function TaskAttachmentsDialog({
+  task,
+  canDelete,
+  onClose,
+}: {
+  task: Task;
+  canDelete: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop task-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="create-modal task-attachments-dialog" role="dialog" aria-modal="true" aria-labelledby="task-attachments-title">
+        <header className="task-modal-header">
+          <span className="modal-icon"><Paperclip size={21} /></span>
+          <div><h2 id="task-attachments-title">Anexos da tarefa</h2><p>{task.codigo ?? `#${task.numero}`} · {task.titulo}</p></div>
+          <button className="icon-button" type="button" aria-label="Fechar anexos" onClick={onClose}><X size={18} /></button>
+        </header>
+        <TaskAttachmentPanel
+          key={task.id}
+          taskId={task.id}
+          allowUpload={false}
+          allowDelete={canDelete}
+          pending={[]}
+          onPendingChange={() => {}}
+        />
+      </section>
+    </div>
+  );
+}
+
 function TaskModal({
   form,
   options,
@@ -1072,6 +1367,11 @@ function TaskModal({
   onChange,
   onResponsibleChange,
   onToggle,
+  taskId,
+  canManageAttachments,
+  canDeleteAttachments,
+  pendingAttachments,
+  onPendingAttachmentsChange,
   onSubmit,
 }: {
   form: TaskForm;
@@ -1087,6 +1387,11 @@ function TaskModal({
   onChange: <K extends keyof TaskForm>(key: K, value: TaskForm[K]) => void;
   onResponsibleChange: (responsavelId: string) => void;
   onToggle: (key: "unidadesCompartilhadas" | "colaboradoresIds", id: string) => void;
+  taskId: string | null;
+  canManageAttachments: boolean;
+  canDeleteAttachments: boolean;
+  pendingAttachments: PendingAttachment[];
+  onPendingAttachmentsChange: (attachments: PendingAttachment[]) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const disabled = readOnly || saving;
@@ -1197,6 +1502,17 @@ function TaskModal({
             <label className="form-label task-form-wide">Notas Importantes / Observações
               <textarea className="form-input form-textarea task-notes-input" value={form.notasImportantes} onChange={(event) => onChange("notasImportantes", event.target.value)} disabled={disabled} />
             </label>
+            <div className="task-form-wide">
+              <TaskAttachmentPanel
+                key={taskId ?? "new-task"}
+                taskId={taskId}
+                allowUpload={canManageAttachments && !disabled}
+                allowDelete={canDeleteAttachments && !disabled}
+                pending={pendingAttachments}
+                onPendingChange={onPendingAttachmentsChange}
+                disabled={saving}
+              />
+            </div>
             </div>
           </div>
           {error && <div className="feedback error-feedback task-modal-error" role="alert"><AlertCircle size={17} />{error}</div>}

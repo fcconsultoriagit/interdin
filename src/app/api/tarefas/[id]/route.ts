@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
-import { applyTaskGovernance, isRecord, listSelect, parseTaskInput, taskDataWithCategory, taskVisibilityWhere, validateTaskRelations } from "@/lib/task-api";
+import { applyTaskGovernance, isRecord, listSelect, parseTaskInput, taskDataWithCategory, taskVisibilityWhere, taskWithAttachmentCount, validateTaskRelations } from "@/lib/task-api";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       select: listSelect,
     });
     if (!tarefa) return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
-    return NextResponse.json({ tarefa }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ tarefa: taskWithAttachmentCount(tarefa) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Falha ao carregar tarefa:", error);
     return NextResponse.json({ error: "Não foi possível carregar a tarefa." }, { status: 500 });
@@ -70,7 +70,7 @@ async function updateTask(request: Request, { params }: RouteContext) {
       data: taskData.data,
       select: listSelect,
     });
-    return NextResponse.json({ tarefa });
+    return NextResponse.json({ tarefa: taskWithAttachmentCount(tarefa) });
   } catch (error) {
     console.error("Falha ao atualizar tarefa:", error);
     if (error instanceof SyntaxError) {
