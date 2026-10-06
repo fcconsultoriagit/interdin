@@ -69,6 +69,7 @@ const catalog = [
       { nome: "Perfis e permissões", slug: "perfis" },
       { nome: "Unidades", slug: "unidades" },
       { nome: "Cargos", slug: "cargos" },
+      { nome: "Categorias", slug: "categorias" },
       { nome: "Configurações gerais", slug: "configuracoes" },
     ],
   },

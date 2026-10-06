@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import type { CSSProperties } from "react";
 import { AppFrame } from "@/components/app-frame";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
@@ -46,6 +47,7 @@ type TaskStatus = (typeof statusOptions)[number]["value"];
 type TaskPriority = (typeof priorityOptions)[number]["value"];
 type UserOption = { id: string; nome: string };
 type UnitOption = { id: string; nome: string; sigla: string };
+type CategoryOption = { id: string; sigla: string; nome: string; cor: string };
 type Task = {
   id: string;
   numero: number;
@@ -57,6 +59,8 @@ type Task = {
   status: TaskStatus;
   prioridade: TaskPriority;
   categoria: string | null;
+  categoriaId: string | null;
+  category: CategoryOption | null;
   progresso: number;
   prazo: string | null;
   dataTarefa: string;
@@ -80,7 +84,7 @@ type TaskForm = {
   responsavelId: string;
   prazo: string;
   status: TaskStatus;
-  categoria: string;
+  categoriaId: string;
   prioridade: TaskPriority;
   progresso: number;
   notasImportantes: string;
@@ -89,7 +93,7 @@ type TaskForm = {
 type TaskOptions = {
   usuarios: UserOption[];
   unidades: UnitOption[];
-  categorias: string[];
+  categorias: CategoryOption[];
 };
 type TaskResponse = {
   tarefas: Task[];
@@ -117,7 +121,7 @@ const emptyForm: TaskForm = {
   responsavelId: "",
   prazo: "",
   status: "NAO_INICIADO",
-  categoria: "",
+  categoriaId: "",
   prioridade: "MEDIA",
   progresso: 0,
   notasImportantes: "",
@@ -145,6 +149,15 @@ function getStatusLabel(status: TaskStatus) {
 
 function getPriorityLabel(priority: TaskPriority) {
   return priorityOptions.find((option) => option.value === priority)?.label ?? priority;
+}
+
+function categoryBadgeStyle(category: CategoryOption | null): CSSProperties | undefined {
+  if (!category) return undefined;
+  return {
+    color: category.cor,
+    borderColor: category.cor,
+    backgroundColor: `${category.cor}1A`,
+  };
 }
 
 function initials(name: string) {
@@ -250,6 +263,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
   }
 
   function openTask(task: Task, readOnly: boolean) {
+    const taskCategory = task.category;
     setEditingTask(readOnly ? null : task);
     setViewingTask(readOnly ? task : null);
     setForm({
@@ -262,12 +276,17 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       responsavelId: task.responsavelId ?? "",
       prazo: task.prazo ? dateTimeLocalValue(new Date(task.prazo)) : "",
       status: task.status,
-      categoria: task.categoria ?? "",
+      categoriaId: task.categoriaId ?? "",
       prioridade: task.prioridade,
       progresso: task.progresso,
       notasImportantes: task.notasImportantes ?? "",
       colaboradoresIds: task.colaboradoresIds,
     });
+    if (taskCategory) {
+      setOptions((current) => current.categorias.some(({ id }) => id === taskCategory.id)
+        ? current
+        : { ...current, categorias: [...current.categorias, taskCategory] });
+    }
     setError("");
     setModalOpen(true);
   }
@@ -292,7 +311,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
     try {
       const payload = {
         ...form,
-        categoria: form.categoria.trim() || null,
+        categoriaId: form.categoriaId || null,
         responsavelId: form.responsavelId || null,
         unidadeId: form.unidadeId || null,
         prazo: form.prazo ? new Date(form.prazo).toISOString() : null,
@@ -446,7 +465,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
               <span>Categoria</span>
               <select value={categoryFilter} onChange={(event) => { setPage(1); setCategoryFilter(event.target.value); }}>
                 <option value="">Todas</option>
-                {options.categorias.map((category) => <option key={category}>{category}</option>)}
+                {options.categorias.map((category) => <option key={category.id} value={category.id} style={{ color: category.cor }}>[{category.sigla}] {category.nome}</option>)}
               </select>
             </label>
             <label className="filter-select-label">
@@ -584,7 +603,7 @@ function TaskCard({ task, canView, canEdit, onView, onEdit }: {
         <div className="task-card-topline">
           <span className="task-code">{task.codigo ?? `#${task.numero}`}</span>
           <span className={`task-status-badge status-badge-${task.status.toLowerCase()}`}>{getStatusLabel(task.status)}</span>
-          {task.categoria && <span className="task-category-badge">{task.categoria}</span>}
+          {(task.category || task.categoria) && <span className="task-category-badge" style={categoryBadgeStyle(task.category)}>{task.category ? `[${task.category.sigla}] ${task.category.nome}` : task.categoria}</span>}
           <span className={`task-priority-badge priority-${task.prioridade.toLowerCase()}`}>{getPriorityLabel(task.prioridade)}</span>
           {task.unidade && <span className="task-unit-badge">{task.unidade.sigla}</span>}
           {task.privada && <span className="task-private-badge"><ShieldAlert size={13} /> Privada</span>}
@@ -662,7 +681,7 @@ function KanbanColumn({
               <span className={`task-priority-badge priority-${task.prioridade.toLowerCase()}`}>{getPriorityLabel(task.prioridade)}</span>
             </div>
             <h3>{task.titulo}</h3>
-            {task.categoria && <span className="task-category-badge kanban-category">{task.categoria}</span>}
+            {(task.category || task.categoria) && <span className="task-category-badge kanban-category" style={categoryBadgeStyle(task.category)}>{task.category ? `[${task.category.sigla}] ${task.category.nome}` : task.categoria}</span>}
             <div className="kanban-task-meta">
               {task.responsavel ? (
                 <span className="kanban-assignee" title={task.responsavel.nome}>
@@ -766,8 +785,8 @@ function TaskModal({
             <label className="form-label">Data/Hora de Entrega
               <input className="form-input" type="datetime-local" value={form.prazo} onChange={(event) => onChange("prazo", event.target.value)} disabled={disabled} />
             </label>
-            <label className="form-label">Unidade principal
-              <select className="form-input" value={form.unidadeId} onChange={(event) => onChange("unidadeId", event.target.value)} disabled={disabled}>
+            <label className="form-label w-full">Unidade principal
+              <select className="form-input w-full" value={form.unidadeId} onChange={(event) => onChange("unidadeId", event.target.value)} disabled={disabled}>
                 <option value="">Sem unidade</option>
                 {options.unidades.map((unit) => <option key={unit.id} value={unit.id}>{unit.sigla} · {unit.nome}</option>)}
               </select>
@@ -796,8 +815,10 @@ function TaskModal({
               </select>
             </label>
             <label className="form-label">Categoria
-              <input className="form-input" list="task-categories" value={form.categoria} onChange={(event) => onChange("categoria", event.target.value)} maxLength={100} placeholder="Ex.: Sistemas" disabled={disabled} />
-              <datalist id="task-categories">{options.categorias.map((category) => <option key={category} value={category} />)}</datalist>
+              <select className="form-input" value={form.categoriaId} onChange={(event) => onChange("categoriaId", event.target.value)} disabled={disabled}>
+                <option value="">Sem categoria</option>
+                {options.categorias.map((category) => <option key={category.id} value={category.id} style={{ color: category.cor }}>[{category.sigla}] {category.nome}</option>)}
+              </select>
             </label>
             <label className="form-label">Prioridade
               <select className="form-input" value={form.prioridade} onChange={(event) => onChange("prioridade", event.target.value as TaskPriority)} disabled={disabled}>

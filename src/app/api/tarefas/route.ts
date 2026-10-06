@@ -10,6 +10,7 @@ import {
   parseDate,
   parsePositiveInteger,
   parseTaskInput,
+  taskDataWithCategory,
   taskStatuses,
   taskVisibilityWhere,
   validateTaskRelations,
@@ -64,7 +65,11 @@ export async function GET(request: Request) {
     if (status) filters.push({ status });
     if (hideArchived === "true") filters.push({ status: { not: "ARQUIVADA" } });
     const categoria = searchParams.get("categoria");
-    if (categoria) filters.push({ categoria });
+    if (categoria) {
+      filters.push({
+        OR: [{ categoriaId: categoria }, { categoria }],
+      });
+    }
     const responsavelId = searchParams.get("responsavelId");
     if (responsavelId) filters.push({ responsavelId });
     const unidadeId = searchParams.get("unidadeId");
@@ -114,11 +119,10 @@ export async function GET(request: Request) {
         select: { id: true, nome: true, sigla: true },
         orderBy: { nome: "asc" },
       }),
-      prisma.task.findMany({
-        where: { AND: [visibilityWhere, { categoria: { not: null } }] },
-        distinct: ["categoria"],
-        select: { categoria: true },
-        orderBy: { categoria: "asc" },
+      prisma.category.findMany({
+        where: { ativa: true },
+        select: { id: true, sigla: true, nome: true, cor: true },
+        orderBy: { nome: "asc" },
       }),
     ]);
 
@@ -130,8 +134,13 @@ export async function GET(request: Request) {
       if (isOneOf(taskStatuses, group.status)) contagens[group.status] = group._count._all;
     }
 
+    const tarefasComCategoriaNula = tarefas.map((tarefa) => ({
+      ...tarefa,
+      category: tarefa.category ?? null,
+    }));
+
     return NextResponse.json({
-      tarefas,
+      tarefas: tarefasComCategoriaNula,
       pagina: page,
       porPagina: pageSize,
       total,
@@ -140,7 +149,7 @@ export async function GET(request: Request) {
       opcoes: {
         usuarios,
         unidades,
-        categorias: categorias.flatMap(({ categoria }) => categoria ? [categoria] : []),
+        categorias,
       },
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -166,6 +175,10 @@ export async function POST(request: Request) {
     if (!titulo) return NextResponse.json({ error: "Informe um título para a tarefa." }, { status: 400 });
 
     const prisma = obterPrisma();
+    const taskData = await taskDataWithCategory(prisma, parsed.data);
+    if ("error" in taskData) {
+      return NextResponse.json({ error: taskData.error }, { status: 400 });
+    }
     const relationError = await validateTaskRelations(prisma, parsed.data, authorization.user.id);
     if (relationError) {
       return NextResponse.json({ error: relationError }, { status: 400 });
@@ -173,7 +186,7 @@ export async function POST(request: Request) {
     const tarefa = await prisma.$transaction(async (transaction) => {
       const created = await transaction.task.create({
         data: {
-          ...parsed.data,
+          ...taskData.data,
           titulo,
           criadorId: authorization.user.id,
           codigo: null,

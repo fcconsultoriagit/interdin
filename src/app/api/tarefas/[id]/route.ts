@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { autorizarApi } from "@/lib/api-auth";
 import { obterPrisma } from "@/lib/prisma";
-import { isRecord, listSelect, parseTaskInput, taskVisibilityWhere, validateTaskRelations } from "@/lib/task-api";
+import { isRecord, listSelect, parseTaskInput, taskDataWithCategory, taskVisibilityWhere, validateTaskRelations } from "@/lib/task-api";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -57,9 +57,11 @@ async function updateTask(request: Request, { params }: RouteContext) {
 
     const relationError = await validateTaskRelations(prisma, parsed.data, authorization.user.id);
     if (relationError) return NextResponse.json({ error: relationError }, { status: 400 });
+    const taskData = await taskDataWithCategory(prisma, parsed.data);
+    if ("error" in taskData) return NextResponse.json({ error: taskData.error }, { status: 400 });
     const tarefa = await prisma.task.update({
       where: { id },
-      data: parsed.data,
+      data: taskData.data,
       select: listSelect,
     });
     return NextResponse.json({ tarefa });

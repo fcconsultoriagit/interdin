@@ -622,6 +622,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   color: var(--muted);
   font-size: 14px;
 }
+.category-create-card { margin-bottom: 22px; }
+.category-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(120px, .65fr) minmax(180px, .8fr) auto; align-items: end; gap: 0 16px; padding: 0 22px 20px; }
+.category-form .form-label { min-width: 0; }
+.category-color-inputs { display: flex; align-items: center; gap: 9px; margin-top: 6px; }
+.category-color-inputs input[type="color"] { width: 48px; height: 44px; flex: 0 0 auto; border: 1px solid #cbd3dc; border-radius: 10px; background: #fff; padding: 4px; cursor: pointer; }
+.category-color-inputs .form-input { min-width: 0; margin-top: 0; }
+.category-form-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 7px; }
+.category-read-only { margin: 0; padding: 0 22px 20px; color: var(--muted); }
+.category-badge { display: inline-flex; min-height: 28px; align-items: center; border: 1px solid; border-radius: 999px; padding: 3px 10px; font-size: 14px; font-weight: 650; line-height: 1.2; white-space: nowrap; }
 .users-management-card { margin-bottom: 10px; }
 .users-toolbar {
   display: flex;
@@ -861,6 +870,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .summary-card strong { font-size: 21px; }
   .dashboard-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace-grid { grid-template-columns: 175px minmax(0, 1fr); }
+  .category-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .category-form-actions { grid-column: 1 / -1; }
 }
 .module-placeholder { align-items: flex-start; flex-direction: column; padding: 22px; }
 @media (max-width: 600px) {
@@ -936,6 +947,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .user-form-grid { grid-template-columns: 1fr; }
   .user-form-field-wide { grid-column: auto; }
   .workspace-grid { grid-template-columns: 1fr; }
+  .category-form, .category-read-only { padding-right: 14px; padding-left: 14px; }
+  .category-form { grid-template-columns: 1fr; }
+  .category-form-actions { grid-column: auto; }
   .profile-list { border-right: 0; border-bottom: 1px solid var(--line); }
   .profile-list .profile-item { max-width: 100%; }
   .permissions-panel { padding: 16px 12px 12px; }

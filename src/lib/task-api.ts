@@ -21,6 +21,8 @@ export const listSelect = {
   status: true,
   prioridade: true,
   categoria: true,
+  categoriaId: true,
+  category: { select: { id: true, sigla: true, nome: true, cor: true } },
   progresso: true,
   prazo: true,
   dataTarefa: true,
@@ -65,6 +67,7 @@ export type TaskInput = {
   status: string;
   prioridade: string;
   categoria: string | null;
+  categoriaId: string | null;
   progresso: number;
   prazo: Date | null;
   dataTarefa: Date;
@@ -141,6 +144,12 @@ export function parseTaskInput(
     if (categoria.length > 100) return { error: "A categoria deve ter no máximo 100 caracteres." };
     data.categoria = categoria || null;
   }
+  if (has("categoriaId")) {
+    if (body.categoriaId !== null && (typeof body.categoriaId !== "string" || !body.categoriaId)) {
+      return { error: "A categoria informada é inválida." };
+    }
+    data.categoriaId = typeof body.categoriaId === "string" ? body.categoriaId : null;
+  } else if (!partial) data.categoriaId = null;
   if (has("progresso")) {
     if (typeof body.progresso !== "number" || !Number.isInteger(body.progresso) || body.progresso < 0 || body.progresso > 100) {
       return { error: "O progresso deve ser um número inteiro de 0 a 100." };
@@ -187,6 +196,22 @@ export function parseTaskInput(
 
   if (partial && Object.keys(data).length === 0) return { error: "Informe ao menos um campo para atualizar." };
   return { data };
+}
+
+export async function taskDataWithCategory(
+  prisma: PrismaClient,
+  data: Partial<TaskInput>,
+): Promise<{ data: Partial<TaskInput> } | { error: string }> {
+  if (!Object.prototype.hasOwnProperty.call(data, "categoriaId")) return { data };
+  if (!data.categoriaId) return { data: { ...data, categoria: null } };
+
+  const category = await prisma.category.findUnique({
+    where: { id: data.categoriaId },
+    select: { sigla: true, nome: true, ativa: true },
+  });
+  if (!category || !category.ativa) return { error: "A categoria selecionada não existe ou está inativa." };
+
+  return { data: { ...data, categoria: `[${category.sigla}] ${category.nome}` } };
 }
 
 export async function validateTaskRelations(

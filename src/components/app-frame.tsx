@@ -21,6 +21,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Tags,
   Users,
 } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -56,6 +57,7 @@ const navigation = [
       { label: "Perfis e permissões", href: "/perfis", resource: "perfis", icon: ShieldCheck },
       { label: "Unidades", href: "/unidades", resource: "unidades", icon: Building2 },
       { label: "Cargos", href: "/cargos", resource: "cargos", icon: BriefcaseBusiness },
+      { label: "Categorias", href: "/categorias", resource: "categorias", icon: Tags },
       { label: "Configurações gerais", href: "/configuracoes", resource: "configuracoes", icon: Settings2 },
     ],
   },

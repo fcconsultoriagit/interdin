@@ -110,6 +110,20 @@ model Unidade {
   @@map("unidades")
 }
 
+model Category {
+  id        String   @id @default(cuid())
+  sigla     String   @unique
+  nome      String
+  cor       String
+  ativa     Boolean  @default(true)
+  tarefas   Task[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativa, nome])
+  @@map("categorias")
+}
+
 model Task {
   id                    String    @id @default(cuid())
   numero                Int       @unique @default(autoincrement())
@@ -121,6 +135,8 @@ model Task {
   status                String    @default("NAO_INICIADO")
   prioridade            String    @default("MEDIA")
   categoria             String?
+  categoriaId           String?
+  category              Category? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
   progresso             Int       @default(0)
   prazo                 DateTime?
   dataTarefa            DateTime  @default(now())
@@ -137,6 +153,7 @@ model Task {
 
   @@index([status])
   @@index([categoria])
+  @@index([categoriaId])
   @@index([responsavelId])
   @@index([unidadeId])
   @@index([criadorId])
