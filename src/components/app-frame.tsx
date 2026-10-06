@@ -17,7 +17,6 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
-  Share2,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -41,7 +40,6 @@ const navigation = [
       { label: "Minhas Tarefas", href: "/tarefas/minhas", resource: "minhas-tarefas", icon: ListTodo },
       { label: "Todas as Tarefas", href: "/tarefas", resource: "tarefas", icon: ListChecks },
       { label: "Quadro Kanban", href: "/tarefas/kanban", resource: "kanban", icon: Columns3 },
-      { label: "Colaborações", href: "/tarefas/colaboracoes", resource: "colaboracoes", icon: Share2 },
     ],
   },
   {

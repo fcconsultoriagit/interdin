@@ -6,10 +6,17 @@ export const metadata: Metadata = {
   title: "Minhas Tarefas | InterDin",
 };
 
-export default function MinhasTarefasPage() {
+export default async function MinhasTarefasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+  const { tab } = await searchParams;
+  const initialTab = tab === "colaboracoes" ? "ondeColaboro" : "atribuídas";
+
   return (
     <PageAccessGuard resource="minhas-tarefas">
-      <MyTasksPage />
+      <MyTasksPage initialTab={initialTab} />
     </PageAccessGuard>
   );
 }

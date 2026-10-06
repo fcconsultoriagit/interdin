@@ -13,7 +13,6 @@ export const catalogoPermissoes = [
       { nome: "Minhas Tarefas", slug: "minhas-tarefas" },
       { nome: "Todas as Tarefas", slug: "tarefas" },
       { nome: "Quadro Kanban", slug: "kanban" },
-      { nome: "Colaborações", slug: "colaboracoes" },
     ],
   },
   {

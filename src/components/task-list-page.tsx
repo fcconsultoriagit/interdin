@@ -622,7 +622,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
   );
 }
 
-export function MyTasksPage() {
+export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTasksTab }) {
   const { user } = useAuthPermissions();
   const { hasPermission } = useAuthPermissions();
   const canEdit = hasPermission("tarefas", "editar");
@@ -637,7 +637,7 @@ export function MyTasksPage() {
     criadasPorMim: 0,
   });
   const [options, setOptions] = useState(initialOptions);
-  const [activeTab, setActiveTab] = useState<MyTasksTab>("atribuídas");
+  const [activeTab, setActiveTab] = useState<MyTasksTab>(initialTab);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"prazo" | "prioridade" | "recentes">("prazo");
   const [loading, setLoading] = useState(true);
