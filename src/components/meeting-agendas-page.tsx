@@ -15,6 +15,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  RotateCw,
   Send,
   Trash2,
   Upload,
@@ -75,6 +76,17 @@ function localDateTime(value: Date) {
   return local.toISOString().slice(0, 16);
 }
 
+function friendlyInvitationFailure(error: string) {
+  const normalized = error.toLocaleLowerCase("pt-BR");
+  if (normalized.includes("too many emails per second") || normalized.includes("550 5.7.0")) {
+    return "O limite de envios por segundo foi atingido. Aguarde um momento e tente novamente.";
+  }
+  if (normalized.includes("invalid recipient") || normalized.includes("bad recipient")) {
+    return "O servidor de e-mail recusou este endereço. Confira se está correto.";
+  }
+  return "O servidor de e-mail não aceitou o convite. Tente novamente mais tarde.";
+}
+
 function readAgendaTopics(value: unknown) {
   return Array.isArray(value) ? value.filter((topic): topic is string => typeof topic === "string") : [];
 }
@@ -106,6 +118,9 @@ export function MeetingAgendasPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deliveryFailures, setDeliveryFailures] = useState<Array<{ email: string; error: string }>>([]);
+  const [failedParticipantIds, setFailedParticipantIds] = useState<Record<string, string[]>>({});
+  const [resendingAgendaIds, setResendingAgendaIds] = useState<Set<string>>(() => new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<MeetingAgenda | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -249,6 +264,8 @@ export function MeetingAgendasPage() {
     setSaving(true);
     setError("");
     setNotice("");
+    setDeliveryFailures([]);
+    setFailedParticipantIds({});
     try {
       const status: MeetingStatus = action === "draft" ? "RASCUNHO" : action === "send" ? "AGENDADA" : form.status;
       if (action === "send" && form.participantes.length === 0) {
@@ -296,16 +313,31 @@ export function MeetingAgendasPage() {
       if (action === "send") {
         const mailResponse = await fetch(`/api/reunioes/agendas/${agenda.id}/notificar`, { method: "POST" });
         const mailResult = await mailResponse.json() as {
+          ok?: boolean;
           enviados?: number;
-          total?: number;
-          falhas?: Array<{ email: string; error: string }>;
+          modoDesenvolvimento?: number;
+          falhas?: Array<{ participanteId: string; email: string; error: string }>;
           error?: string;
         };
-        if (!mailResponse.ok) {
-          const details = mailResult.falhas?.map(({ email, error: reason }) => `${email}: ${reason}`).join(" · ");
-          throw new Error(`A agenda foi salva como agendada, mas houve falha no envio dos convites. ${details ?? mailResult.error ?? "Verifique a configuração SMTP."}`);
+        if (!mailResponse.ok || mailResult.ok !== true) {
+          throw new Error(mailResult.error ?? "A agenda foi salva, mas não foi possível processar o envio dos convites.");
         }
-        setNotice(`${mailResult.enviados ?? 0} de ${mailResult.total ?? 0} convites enviados.`);
+        const failures = mailResult.falhas ?? [];
+        setFailedParticipantIds((current) => ({
+          ...current,
+          [agenda.id]: failures.map(({ participanteId }) => participanteId),
+        }));
+        setDeliveryFailures(failures.map(({ email, error: reason }) => ({
+          email,
+          error: friendlyInvitationFailure(reason),
+        })));
+        const sent = mailResult.enviados ?? 0;
+        const developmentFallback = mailResult.modoDesenvolvimento ?? 0;
+        setNotice(failures.length
+          ? `Envio concluído parcialmente: ${sent} convite${sent === 1 ? "" : "s"} processado${sent === 1 ? "" : "s"}${developmentFallback > 0 ? ` (${developmentFallback} simulado${developmentFallback === 1 ? "" : "s"} no modo de desenvolvimento)` : ""} e ${failures.length} com falha.`
+          : developmentFallback > 0
+            ? `${sent} convite${sent === 1 ? "" : "s"} processado${sent === 1 ? "" : "s"} (${developmentFallback} simulado${developmentFallback === 1 ? "" : "s"} no modo de desenvolvimento; detalhes no log do servidor).`
+            : `${sent} convite${sent === 1 ? "" : "s"} enviado${sent === 1 ? "" : "s"} com sucesso.`);
       } else {
         setNotice(action === "draft" ? "Rascunho salvo. Nenhum e-mail foi enviado." : "Agenda salva.");
       }
@@ -316,6 +348,66 @@ export function MeetingAgendasPage() {
       setError(saveError instanceof Error ? saveError.message : "Não foi possível salvar a agenda.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function resendPendingInvitations(agenda: MeetingAgenda) {
+    const failedIds = failedParticipantIds[agenda.id] ?? [];
+    const participantIds = [...new Set([
+      ...agenda.participantes
+        .filter((participant) => (participant.confirmacao ?? "PENDENTE") === "PENDENTE")
+        .map(({ id }) => id),
+      ...failedIds,
+    ])];
+    if (participantIds.length === 0) {
+      setNotice("Não há convites pendentes ou com falha para reenviar.");
+      return;
+    }
+
+    setResendingAgendaIds((current) => new Set(current).add(agenda.id));
+    setDeliveryFailures([]);
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch(`/api/reunioes/agendas/${agenda.id}/notificar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantIds }),
+      });
+      const result = await response.json() as {
+        ok?: boolean;
+        enviados?: number;
+        modoDesenvolvimento?: number;
+        falhas?: Array<{ participanteId: string; email: string; error: string }>;
+        error?: string;
+      };
+      if (!response.ok || result.ok !== true) {
+        throw new Error(result.error ?? "Não foi possível reenviar os convites.");
+      }
+
+      const failures = result.falhas ?? [];
+      setFailedParticipantIds((current) => ({
+        ...current,
+        [agenda.id]: failures.map(({ participanteId }) => participanteId),
+      }));
+      setDeliveryFailures(failures.map(({ email, error: reason }) => ({
+        email,
+        error: friendlyInvitationFailure(reason),
+      })));
+      const sent = result.enviados ?? 0;
+      setNotice(failures.length
+        ? `Reenvio concluído parcialmente: ${sent} convite${sent === 1 ? "" : "s"} processado${sent === 1 ? "" : "s"}${result.modoDesenvolvimento ? ` (${result.modoDesenvolvimento} simulado${result.modoDesenvolvimento === 1 ? "" : "s"} no modo de desenvolvimento)` : ""} e ${failures.length} com falha.`
+        : result.modoDesenvolvimento
+          ? `${sent} convite${sent === 1 ? "" : "s"} processado${sent === 1 ? "" : "s"} (${result.modoDesenvolvimento} simulado${result.modoDesenvolvimento === 1 ? "" : "s"} no modo de desenvolvimento; detalhes no log do servidor).`
+          : `${sent} convite${sent === 1 ? "" : "s"} reenviado${sent === 1 ? "" : "s"} com sucesso.`);
+    } catch (resendError) {
+      setError(resendError instanceof Error ? resendError.message : "Não foi possível reenviar os convites.");
+    } finally {
+      setResendingAgendaIds((current) => {
+        const next = new Set(current);
+        next.delete(agenda.id);
+        return next;
+      });
     }
   }
 
@@ -364,6 +456,13 @@ export function MeetingAgendasPage() {
           {canCreate && <button className="button button-primary" type="button" onClick={openCreate}><CirclePlus size={17} /> Nova Agenda</button>}
         </div>
         {notice && <div className="feedback success-feedback" role="status"><CheckCircle2 size={17} />{notice}<button type="button" aria-label="Fechar aviso" onClick={() => setNotice("")}><X size={16} /></button></div>}
+        {deliveryFailures.length > 0 && (
+          <div className="feedback error-feedback meeting-delivery-feedback" role="status">
+            <AlertCircle size={17} />
+            <div><strong>Não foi possível entregar todos os convites:</strong><ul>{deliveryFailures.map(({ email, error: reason }) => <li key={`${email}:${reason}`}>{email}: {reason}</li>)}</ul></div>
+            <button type="button" aria-label="Fechar detalhes de envio" onClick={() => setDeliveryFailures([])}><X size={16} /></button>
+          </div>
+        )}
         {error && !modalOpen && <div className="feedback error-feedback" role="alert"><AlertCircle size={17} />{error}<button type="button" aria-label="Fechar erro" onClick={() => setError("")}><X size={16} /></button></div>}
         {loading ? <div className="meeting-loading"><LoaderCircle size={19} className="spin" /> Carregando agendas…</div> : orderedAgendas.length === 0 ? (
           <section className="meeting-empty"><CalendarDays size={28} /><h2>Nenhuma reunião cadastrada</h2><p>As agendas que você pode visualizar aparecerão aqui.</p>{canCreate && <button className="button button-secondary" type="button" onClick={openCreate}><Plus size={16} /> Criar primeira agenda</button>}</section>
@@ -371,6 +470,11 @@ export function MeetingAgendasPage() {
           <div className="meeting-agenda-list">
             {orderedAgendas.map((agenda) => {
               const canManage = canEdit && agenda.criadorId === user?.id;
+              const pendingCount = agenda.participantes.filter((participant) => (
+                (participant.confirmacao ?? "PENDENTE") === "PENDENTE"
+              )).length;
+              const failedCount = failedParticipantIds[agenda.id]?.length ?? 0;
+              const isResending = resendingAgendaIds.has(agenda.id);
               const topics = readAgendaTopics(agenda.pauta);
               return (
                 <article className="meeting-agenda-card" key={agenda.id}>
@@ -398,6 +502,24 @@ export function MeetingAgendasPage() {
                     </div>
                   </div>
                   <div className="meeting-card-actions">
+                    {canManage && agenda.status === "AGENDADA" && (pendingCount > 0 || failedCount > 0) && (
+                      <button
+                        className="button button-secondary meeting-resend-button"
+                        type="button"
+                        disabled={isResending}
+                        onClick={() => void resendPendingInvitations(agenda)}
+                        aria-label={`Reenviar convites pendentes da reunião ${agenda.titulo}`}
+                        title="Reenviar para participantes pendentes ou com falha"
+                      >
+                        {isResending ? <LoaderCircle size={15} className="spin" /> : <RotateCw size={15} />}
+                        {isResending ? "Reenviando…" : `Reenviar convites (${new Set([
+                          ...agenda.participantes
+                            .filter((participant) => (participant.confirmacao ?? "PENDENTE") === "PENDENTE")
+                            .map(({ id }) => id),
+                          ...(failedParticipantIds[agenda.id] ?? []),
+                        ]).size})`}
+                      </button>
+                    )}
                     {canManage && <button className="icon-button" type="button" aria-label={`Editar ${agenda.titulo}`} title="Editar" onClick={() => openEdit(agenda)}><Pencil size={17} /></button>}
                     {canDelete && agenda.criadorId === user?.id && <button className="icon-button" type="button" aria-label={`Excluir ${agenda.titulo}`} title="Excluir" onClick={() => void removeAgenda(agenda)}><Trash2 size={17} /></button>}
                   </div>

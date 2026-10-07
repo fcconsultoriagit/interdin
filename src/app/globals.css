@@ -618,6 +618,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .meeting-form-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); background: #fff; padding: 11px 20px; }
 .meeting-saving { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .meeting-form-error { grid-column: 1 / -1; margin: 0 0 8px; }
+.meeting-delivery-feedback { align-items: flex-start; }
+.meeting-delivery-feedback > div { min-width: 0; flex: 1; }
+.meeting-delivery-feedback ul { margin: 5px 0 0; padding-left: 18px; font-size: 13px; }
 .meeting-rsvp-page { display: grid; min-height: 100vh; place-items: center; background: #f3f6f9; padding: 22px; }
 .meeting-rsvp-card { width: min(100%, 620px); border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 30px; box-shadow: 0 18px 50px #17324d12; }
 .meeting-rsvp-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #e8d4ad; border-radius: 13px; background: #faf6ed; color: var(--dark-gold); }

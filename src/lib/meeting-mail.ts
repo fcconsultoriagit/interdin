@@ -5,6 +5,15 @@ import type { MeetingAgenda, MeetingParticipant } from "@prisma/client";
 
 type AgendaForMail = Pick<MeetingAgenda, "titulo" | "dataHora" | "localOuLink" | "pauta">;
 type ParticipantForMail = Pick<MeetingParticipant, "nome" | "email" | "tokenConfirmacao">;
+type InvitationMessage = {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+};
+
+let pooledTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -22,10 +31,70 @@ function escapeHtml(value: string) {
   })[character] ?? character);
 }
 
+function getFailureDetails(error: unknown) {
+  if (typeof error !== "object" || error === null) return { code: "", message: String(error), responseCode: 0 };
+  const failure = error as { code?: unknown; message?: unknown; response?: unknown; responseCode?: unknown };
+  return {
+    code: typeof failure.code === "string" ? failure.code.toUpperCase() : "",
+    message: [
+      typeof failure.message === "string" ? failure.message : "",
+      typeof failure.response === "string" ? failure.response : "",
+    ].join(" "),
+    responseCode: typeof failure.responseCode === "number" ? failure.responseCode : 0,
+  };
+}
+
+function isTransientSmtpFailure(error: unknown) {
+  const failure = getFailureDetails(error);
+  return failure.responseCode === 550 ||
+    /\b550(?:\s+5\.7\.0)?\b|too many emails per second|rate.?limit|connection (?:closed|refused|timed out|timeout)|network|socket hang up/i.test(failure.message) ||
+    ["ECONNECTION", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ESOCKET", "EHOSTUNREACH", "ENETUNREACH", "ENOTFOUND", "EAI_AGAIN"].includes(failure.code);
+}
+
+function buildInvitationMessage(
+  agenda: AgendaForMail,
+  participant: ParticipantForMail,
+  from: string,
+  baseUrl: string,
+): InvitationMessage & { rsvpUrl: string } {
+  const rsvpUrl = `${baseUrl}/reunioes/confirmar?token=${encodeURIComponent(participant.tokenConfirmacao)}`;
+  const meetingDate = agenda.dataHora.toLocaleString("pt-BR", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "America/Bahia",
+  });
+  const agendaTopics = Array.isArray(agenda.pauta)
+    ? agenda.pauta.filter((topic): topic is string => typeof topic === "string")
+    : [];
+  const safeTitle = escapeHtml(agenda.titulo);
+  const safeName = escapeHtml(participant.nome);
+  const safeLocation = agenda.localOuLink ? escapeHtml(agenda.localOuLink) : "A definir";
+  const topicsHtml = agendaTopics.length
+    ? `<ol>${agendaTopics.map((topic) => `<li>${escapeHtml(topic)}</li>`).join("")}</ol>`
+    : "<p>Pauta não informada.</p>";
+
+  return {
+    from,
+    to: participant.email,
+    subject: `Convite: ${agenda.titulo}`,
+    rsvpUrl,
+    text: [
+      `Olá, ${participant.nome}.`,
+      `Você foi convidado(a) para: ${agenda.titulo}`,
+      `Data e hora: ${meetingDate}`,
+      `Local ou link: ${agenda.localOuLink ?? "A definir"}`,
+      "Pauta:",
+      ...(agendaTopics.length ? agendaTopics.map((topic, index) => `${index + 1}. ${topic}`) : ["Pauta não informada."]),
+      `Confirme sua presença: ${rsvpUrl}`,
+    ].join("\n"),
+    html: `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#17283d"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px"><tr><td align="center"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border-radius:12px;padding:28px"><tr><td><p>Olá, ${safeName}.</p><h1 style="color:#002654;font-size:22px">Convite para reunião</h1><h2 style="font-size:19px">${safeTitle}</h2><p><strong>Data e hora:</strong> ${escapeHtml(meetingDate)}</p><p><strong>Local ou link:</strong> ${safeLocation}</p><h3>Pauta</h3>${topicsHtml}<p style="margin:28px 0"><a href="${escapeHtml(rsvpUrl)}" style="display:inline-block;background:#002654;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Confirmar presença</a></p><p style="color:#566578;font-size:12px">Na página de confirmação, você também poderá recusar o convite.</p></td></tr></table></td></tr></table></body></html>`,
+  };
+}
+
 export async function sendMeetingInvitation(
   agenda: AgendaForMail,
   participant: ParticipantForMail,
-) {
+): Promise<{ delivered: true; developmentFallback: boolean }> {
   const host = requiredEnv("SMTP_HOST");
   const port = Number(requiredEnv("SMTP_PORT"));
   const user = requiredEnv("SMTP_USER");
@@ -55,41 +124,36 @@ export async function sendMeetingInvitation(
   }
 
   const secure = process.env.SMTP_SECURE === "true" || port === 465;
-  const rsvpUrl = `${baseUrl}/reunioes/confirmar?token=${encodeURIComponent(participant.tokenConfirmacao)}`;
-  const meetingDate = agenda.dataHora.toLocaleString("pt-BR", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/Bahia",
-  });
-  const agendaTopics = Array.isArray(agenda.pauta)
-    ? agenda.pauta.filter((topic): topic is string => typeof topic === "string")
-    : [];
-  const safeTitle = escapeHtml(agenda.titulo);
-  const safeName = escapeHtml(participant.nome);
-  const safeLocation = agenda.localOuLink ? escapeHtml(agenda.localOuLink) : "A definir";
-  const topicsHtml = agendaTopics.length
-    ? `<ol>${agendaTopics.map((topic) => `<li>${escapeHtml(topic)}</li>`).join("")}</ol>`
-    : "<p>Pauta não informada.</p>";
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass: password },
-  });
+  const message = buildInvitationMessage(agenda, participant, from, baseUrl);
+  if (!pooledTransporter) {
+    pooledTransporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      pool: true,
+      maxMessages: Infinity,
+      auth: { user, pass: password },
+    });
+  }
 
-  await transporter.sendMail({
-    from,
-    to: participant.email,
-    subject: `Convite: ${agenda.titulo}`,
-    text: [
-      `Olá, ${participant.nome}.`,
-      `Você foi convidado(a) para: ${agenda.titulo}`,
-      `Data e hora: ${meetingDate}`,
-      `Local ou link: ${agenda.localOuLink ?? "A definir"}`,
-      "Pauta:",
-      ...(agendaTopics.length ? agendaTopics.map((topic, index) => `${index + 1}. ${topic}`) : ["Pauta não informada."]),
-      `Confirme sua presença: ${rsvpUrl}`,
-    ].join("\n"),
-    html: `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#17283d"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px"><tr><td align="center"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border-radius:12px;padding:28px"><tr><td><p>Olá, ${safeName}.</p><h1 style="color:#002654;font-size:22px">Convite para reunião</h1><h2 style="font-size:19px">${safeTitle}</h2><p><strong>Data e hora:</strong> ${escapeHtml(meetingDate)}</p><p><strong>Local ou link:</strong> ${safeLocation}</p><h3>Pauta</h3>${topicsHtml}<p style="margin:28px 0"><a href="${escapeHtml(rsvpUrl)}" style="display:inline-block;background:#002654;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Confirmar presença</a></p><p style="color:#566578;font-size:12px">Na página de confirmação, você também poderá recusar o convite.</p></td></tr></table></td></tr></table></body></html>`,
-  });
+  try {
+    await pooledTransporter.sendMail({
+      from: message.from,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+    });
+    return { delivered: true, developmentFallback: false };
+  } catch (error) {
+    if (process.env.NODE_ENV === "development" && isTransientSmtpFailure(error)) {
+      console.warn("Convite de reunião processado em modo de desenvolvimento: SMTP indisponível.", {
+        destinatario: message.to,
+        linkConfirmacao: message.rsvpUrl,
+        corpo: { texto: message.text, html: message.html },
+      });
+      return { delivered: true, developmentFallback: true };
+    }
+    throw error;
+  }
 }
