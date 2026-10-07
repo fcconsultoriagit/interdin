@@ -13,6 +13,7 @@ Use Node.js 22.18 ou superior e PostgreSQL.
 5. Execute `npm run dev` e acesse `http://localhost:3000/login`.
 
 Os anexos das tarefas são armazenados fora de `public`, em `storage/task-attachments`. Em produção, monte essa pasta em um volume persistente e restrito ao servidor; os arquivos são servidos pelas rotas autenticadas da API.
+Os anexos de pautas de reunião são armazenados de forma privada em `storage/meeting-attachments`; configure também um volume persistente em produção. Para envio de convites, defina `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` e `SMTP_FROM` no ambiente do servidor. Os rascunhos não enviam e-mails.
 
 O login local autentica usuários ativos da tabela `usuarios` por e-mail e senha. A sessão é assinada no servidor e mantida em cookie HTTP-only por oito horas. Para o primeiro acesso, associe um usuário confiável a um perfil e marque esse perfil como administrador total (`administradorTotal = true`) no banco. Após a migração, faça isso apenas para uma conta controlada pela equipe de administração; administradores totais podem então conceder esse nível pelo gerenciamento de perfis. Um perfil sem essa flag também é reconhecido como administrador total se possuir todas as cinco ações para todos os recursos.
 
@@ -21,7 +22,7 @@ Para provisionar o administrador master de setup, execute `npm run setup:admin` 
 As rotas de páginas verificam `visualizar`, os itens de navegação verificam `verMenu` e os endpoints protegidos de `/api/usuarios`, `/api/perfis`, `/api/unidades` e `/api/cargos` verificam a ação correspondente antes de executar consultas. Usuários que não sejam administradores totais também não podem conceder permissões, atribuir perfis com ações que não possuem ou modificar contas/perfis com privilégios superiores.
 
 O catálogo inicial de módulos e recursos é criado de forma idempotente na primeira consulta à API.
-O catálogo RBAC está organizado em Visão Geral, Tarefas, Operações e Análises e Configurações. Ao sincronizar o catálogo, permissões de recursos existentes que mudaram de módulo são transferidas para os novos registros.
+O catálogo RBAC está organizado em Visão Geral, Tarefas, Reuniões & Súmulas, Operações e Análises e Configurações. Ao sincronizar o catálogo, permissões de recursos existentes que mudaram de módulo são transferidas para os novos registros.
 
 O menu inclui `/painel`, `/tarefas/minhas`, `/tarefas`, `/tarefas/kanban`, `/relatorios` e `/configuracoes`. A listagem em `/tarefas` e o quadro Kanban em `/tarefas/kanban` compartilham o formulário de tarefas; o badge de Minhas Tarefas usa a contagem real de tarefas atribuídas ao usuário.
 
@@ -66,6 +67,15 @@ A gestão de usuários está disponível em `/usuarios`.
 - `DELETE /api/tarefas/:id/anexos/:anexoId`: exclui o registro e o arquivo físico; `GET` na mesma rota permite visualização segura ou download autenticado.
 
 Cada arquivo pode ter até 20 MB e os formatos aceitos são PDF, imagens PNG/JPEG/GIF/WebP, documentos Office/OpenDocument, texto e CSV. A pasta deve persistir entre reinícios/deploys e não deve ser exposta como conteúdo público.
+
+- `GET /api/reunioes/agendas`: lista agendas visíveis ao usuário, incluindo participantes, confirmações e anexos; agendas privadas só são retornadas ao criador e aos participantes internos convocados.
+- `POST /api/reunioes/agendas` e `PATCH /api/reunioes/agendas/:id`: criam ou atualizam agenda, participantes e pauta ordenada.
+- `POST /api/reunioes/agendas/:id/anexos`: envia documentos de pauta usando multipart/form-data (`files` repetidos e `names` como array JSON).
+- `GET`/`DELETE /api/reunioes/agendas/:id/anexos/:anexoId`: visualiza/baixa ou exclui um anexo privado da reunião.
+- `POST /api/reunioes/agendas/:id/notificar`: envia convites SMTP e links individuais de confirmação de presença.
+- `GET`/`POST /api/reunioes/confirmar`: consulta e regista RSVP por token de convite.
+
+As agendas estão disponíveis em `/reunioes/agendas` (`/reunioes` redireciona para essa rota); Súmulas e Decisões também estão na seção própria do menu. Salvar rascunho não envia e-mails; “Salvar e Enviar” grava como `AGENDADA` e dispara convites. Configure `APP_BASE_URL` e as variáveis `SMTP_*` no servidor para habilitar os envios.
 
 A listagem e o formulário de tarefas estão disponíveis em `/tarefas`; o quadro Kanban em `/tarefas/kanban` mostra as etapas Não Iniciado, Em andamento, Pendente Coordenação e Concluído, com controles para mover tarefas entre elas. A página exige permissão de visualização para os recursos `kanban` e `tarefas`; mover tarefas também exige `tarefas.editar`. A área `/tarefas/minhas` organiza as tarefas do usuário autenticado nas abas Atribuídas a Mim, Onde Colaboro e Criadas por Mim; suas contagens excluem tarefas concluídas e arquivadas. As categorias vinculadas às tarefas são exibidas com sigla, nome e cor cadastrados. Tarefas privadas só são retornadas ao criador, responsável e colaboradores; tarefas não privadas vinculadas a unidades são visíveis aos membros da unidade principal ou das unidades compartilhadas, além do criador, responsável e colaboradores. Sem unidades vinculadas, tarefas não privadas ficam visíveis a todos que tenham permissão de visualizar tarefas.
 

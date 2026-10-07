@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import Image from "next/image";
 import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import { AppFrame } from "@/components/app-frame";
@@ -71,7 +72,7 @@ type TaskAttachment = {
   createdAt: string;
   enviadoPor: UserOption | null;
 };
-type PendingAttachment = { id: string; file: File; nome: string };
+type PendingAttachment = { id: string; file: File; nome: string; previewUrl: string | null };
 type Task = {
   id: string;
   numero: number;
@@ -179,6 +180,12 @@ function formatFileSize(size: number | null) {
   if (size === null) return "Tamanho indisponível";
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
   return `${(size / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+}
+
+function releasePendingPreviews(attachments: PendingAttachment[]) {
+  for (const { previewUrl } of attachments) {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }
 }
 
 function attachmentIcon(fileName: string) {
@@ -322,6 +329,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       unidadeId: user?.unidadeId ?? "",
       responsavelId: user?.id ?? "",
     });
+    releasePendingPreviews(pendingAttachments);
     setPendingAttachments([]);
     setError("");
     setModalOpen(true);
@@ -331,6 +339,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
     const taskCategory = task.category;
     setEditingTask(readOnly ? null : task);
     setViewingTask(readOnly ? task : null);
+    releasePendingPreviews(pendingAttachments);
     setPendingAttachments([]);
     setForm({
       titulo: task.titulo,
@@ -408,6 +417,7 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
       if (pendingAttachments.length > 0) {
         try {
           await uploadPendingAttachments(taskId, pendingAttachments);
+          releasePendingPreviews(pendingAttachments);
           setPendingAttachments([]);
         } catch (uploadError) {
           throw new Error(`A tarefa foi salva, mas os anexos não foram enviados. ${uploadError instanceof Error ? uploadError.message : ""} Tente salvar novamente para reenviar.`);
@@ -676,6 +686,8 @@ export function TaskListPage({ view = "list" }: { view?: "list" | "kanban" }) {
           readOnly={viewingTask !== null}
           editing={editingTask !== null}
           onClose={() => {
+            releasePendingPreviews(pendingAttachments);
+            setPendingAttachments([]);
             setModalOpen(false);
             setError("");
             void loadTasks(new AbortController().signal);
@@ -801,6 +813,7 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
   function openTask(task: Task, readOnly: boolean) {
     setEditingTask(readOnly ? null : task);
     setViewingTask(readOnly ? task : null);
+    releasePendingPreviews(pendingAttachments);
     setPendingAttachments([]);
     setForm({
       titulo: task.titulo,
@@ -874,6 +887,7 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
       if (pendingAttachments.length > 0) {
         try {
           await uploadPendingAttachments(editingTask.id, pendingAttachments);
+          releasePendingPreviews(pendingAttachments);
           setPendingAttachments([]);
         } catch (uploadError) {
           throw new Error(`A tarefa foi atualizada, mas os anexos não foram enviados. ${uploadError instanceof Error ? uploadError.message : ""} Tente salvar novamente para reenviar.`);
@@ -995,6 +1009,8 @@ export function MyTasksPage({ initialTab = "atribuídas" }: { initialTab?: MyTas
           readOnly={viewingTask !== null}
           editing={editingTask !== null}
           onClose={() => {
+            releasePendingPreviews(pendingAttachments);
+            setPendingAttachments([]);
             setModalOpen(false);
             setError("");
             void loadTasks();
@@ -1202,6 +1218,8 @@ function TaskAttachmentPanel({
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [loading, setLoading] = useState(Boolean(taskId));
   const [error, setError] = useState("");
+  const [attachmentNames, setAttachmentNames] = useState<Record<string, string>>({});
+  const [savingAttachmentIds, setSavingAttachmentIds] = useState<Set<string>>(() => new Set());
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1230,6 +1248,7 @@ function TaskAttachmentPanel({
       id: crypto.randomUUID(),
       file,
       nome: file.name.replace(/\.[^.]+$/, "") || file.name,
+      previewUrl: /\.(png|jpe?g|gif|webp)$/i.test(file.name) ? URL.createObjectURL(file) : null,
     }));
     onPendingChange([...pending, ...added]);
     if (fileInput.current) fileInput.current.value = "";
@@ -1245,6 +1264,39 @@ function TaskAttachmentPanel({
       setAttachments((current) => current.filter(({ id }) => id !== attachment.id));
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "Não foi possível excluir o anexo.");
+    }
+  }
+
+  async function saveAttachmentName(attachment: TaskAttachment) {
+    if (!taskId) return;
+    const nome = (attachmentNames[attachment.id] ?? attachment.nome).trim();
+    if (!nome || nome.length > 180 || nome === attachment.nome) return;
+    setError("");
+    setSavingAttachmentIds((current) => new Set(current).add(attachment.id));
+    try {
+      const response = await fetch(`/api/tarefas/${taskId}/anexos/${attachment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      });
+      const result = await response.json() as { anexo?: TaskAttachment; error?: string };
+      if (!response.ok || !result.anexo) {
+        throw new Error(result.error ?? "Não foi possível atualizar o nome do anexo.");
+      }
+      setAttachments((current) => current.map((item) => item.id === attachment.id ? result.anexo! : item));
+      setAttachmentNames((current) => {
+        const next = { ...current };
+        delete next[attachment.id];
+        return next;
+      });
+    } catch (renameError) {
+      setError(renameError instanceof Error ? renameError.message : "Não foi possível atualizar o nome do anexo.");
+    } finally {
+      setSavingAttachmentIds((current) => {
+        const next = new Set(current);
+        next.delete(attachment.id);
+        return next;
+      });
     }
   }
 
@@ -1283,11 +1335,29 @@ function TaskAttachmentPanel({
               <li key={attachment.id} className="task-attachment-item">
                 <Icon size={19} />
                 <div className="task-attachment-copy">
-                  <strong title={attachment.nome}>{attachment.nome}</strong>
+                  {allowDelete ? (
+                    <input
+                      className="form-input task-attachment-name-input"
+                      aria-label={`Nome descritivo de ${attachment.nome}`}
+                      value={attachmentNames[attachment.id] ?? attachment.nome}
+                      maxLength={180}
+                      disabled={disabled || savingAttachmentIds.has(attachment.id)}
+                      onChange={(event) => setAttachmentNames((current) => ({ ...current, [attachment.id]: event.target.value }))}
+                    />
+                  ) : <strong title={attachment.nome}>{attachment.nome}</strong>}
                   <small>{formatFileSize(attachment.tamanho)} · {formatDate(attachment.createdAt, true)}{attachment.enviadoPor ? ` · ${attachment.enviadoPor.nome}` : ""}</small>
                 </div>
                 <a href={`${href}?inline=true`} target="_blank" rel="noopener noreferrer" aria-label={`Visualizar ${attachment.nome}`} title="Visualizar"><Eye size={16} /></a>
                 <a href={href} download={attachment.nomeOriginal} aria-label={`Baixar ${attachment.nome}`} title="Download"><Download size={16} /></a>
+                {allowDelete && (attachmentNames[attachment.id] ?? attachment.nome).trim() !== attachment.nome && (
+                  <button
+                    type="button"
+                    disabled={disabled || savingAttachmentIds.has(attachment.id) || !(attachmentNames[attachment.id] ?? "").trim()}
+                    onClick={() => void saveAttachmentName(attachment)}
+                    aria-label={`Salvar nome de ${attachment.nome}`}
+                    title="Salvar nome"
+                  ><Check size={16} /></button>
+                )}
                 {allowDelete && <button type="button" disabled={disabled} onClick={() => void removeAttachment(attachment)} aria-label={`Excluir ${attachment.nome}`} title="Excluir"><Trash2 size={16} /></button>}
               </li>
             );
@@ -1296,11 +1366,13 @@ function TaskAttachmentPanel({
       )}
       {pending.length > 0 && (
         <ul className="task-attachment-list task-attachment-pending">
-          {pending.map(({ id, file, nome }) => {
+          {pending.map(({ id, file, nome, previewUrl }) => {
             const Icon = attachmentIcon(file.name);
             return (
               <li key={id} className="task-attachment-item">
-                <Icon size={19} />
+                {previewUrl ? (
+                  <Image className="task-attachment-preview" src={previewUrl} alt={`Pré-visualização de ${file.name}`} width={48} height={48} unoptimized />
+                ) : <Icon size={19} />}
                 <label className="task-attachment-copy">
                   <span className="visually-hidden">Nome descritivo de {file.name}</span>
                   <input
@@ -1313,7 +1385,11 @@ function TaskAttachmentPanel({
                   />
                   <small>{file.name} · {formatFileSize(file.size)}</small>
                 </label>
-                <button type="button" disabled={disabled} onClick={() => onPendingChange(pending.filter((item) => item.id !== id))} aria-label={`Remover ${file.name} da fila`} title="Remover arquivo"><X size={16} /></button>
+                <button type="button" disabled={disabled} onClick={() => {
+                  const removed = pending.find((item) => item.id === id);
+                  if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+                  onPendingChange(pending.filter((item) => item.id !== id));
+                }} aria-label={`Remover ${file.name} da fila`} title="Remover arquivo"><X size={16} /></button>
               </li>
             );
           })}

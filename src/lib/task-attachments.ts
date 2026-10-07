@@ -25,7 +25,7 @@ const inlineContentTypes: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-type AttachmentAction = "view" | "upload" | "delete";
+type AttachmentAction = "view" | "upload" | "edit";
 
 export type TaskAttachmentAccess = {
   user: AuthenticatedUser;
@@ -51,7 +51,7 @@ export async function authorizeTaskAttachments(
     const canEdit = can(user.permissoes, "tarefas", "editar");
     const hasPermission = action === "view"
       ? can(user.permissoes, "tarefas", "visualizar") || can(user.permissoes, "minhas-tarefas", "visualizar")
-      : action === "delete"
+      : action === "edit"
         ? canEdit
         : canCreate || canEdit;
     if (!hasPermission) {
@@ -210,6 +210,30 @@ export async function deleteTaskAttachment(
     throw error;
   }
   return NextResponse.json({ sucesso: true });
+}
+
+export async function renameTaskAttachment(
+  prisma: PrismaClient,
+  taskId: string,
+  attachmentId: string,
+  value: unknown,
+) {
+  if (typeof value !== "string" || !value.trim() || value.trim().length > MAX_LABEL_LENGTH) {
+    return NextResponse.json({ error: "Informe um nome descritivo de até 180 caracteres." }, { status: 400 });
+  }
+  const attachment = await prisma.taskAttachment.findFirst({
+    where: { id: attachmentId, taskId },
+    select: { id: true },
+  });
+  if (!attachment) {
+    return NextResponse.json({ error: "Anexo não encontrado." }, { status: 404 });
+  }
+  const updated = await prisma.taskAttachment.update({
+    where: { id: attachment.id },
+    data: { nome: value.trim() },
+    select: attachmentSelect,
+  });
+  return NextResponse.json({ anexo: updated });
 }
 
 export async function readTaskAttachment(

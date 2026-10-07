@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
 export async function DELETE(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const access = await authorizeTaskAttachments(request, id, "delete");
+  const access = await authorizeTaskAttachments(request, id, "edit");
   if ("response" in access) return access.response;
 
   try {

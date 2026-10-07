@@ -30,6 +30,8 @@ model User {
   tarefasCriadas       Task[] @relation("TaskCreator")
   tarefasResponsaveis  Task[] @relation("TaskResponsible")
   anexosEnviados       TaskAttachment[] @relation("TaskAttachmentUploader")
+  agendasCriadas       MeetingAgenda[] @relation("MeetingAgendaCreator")
+  participacoesReunioes MeetingParticipant[] @relation("MeetingParticipantUser")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -181,6 +183,60 @@ model TaskAttachment {
   @@index([taskId, createdAt])
   @@index([enviadoPorId])
   @@map("anexos_tarefas")
+}
+
+model MeetingAgenda {
+  id           String              @id @default(cuid())
+  titulo       String
+  dataHora     DateTime
+  localOuLink  String?
+  privada      Boolean             @default(false)
+  pauta        Json?
+  status       String              @default("AGENDADA")
+  criadorId    String
+  criador      User                @relation("MeetingAgendaCreator", fields: [criadorId], references: [id], onDelete: Restrict)
+  participantes MeetingParticipant[]
+  anexos       MeetingAttachment[]
+  sumulaId     String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([dataHora])
+  @@index([status, dataHora])
+  @@index([criadorId])
+  @@map("agendas_reunioes")
+}
+
+model MeetingParticipant {
+  id                String        @id @default(cuid())
+  agendaId          String
+  agenda            MeetingAgenda @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  tipo              String        @default("INTERNO")
+  userId            String?
+  usuario           User?         @relation("MeetingParticipantUser", fields: [userId], references: [id], onDelete: SetNull)
+  nome              String
+  email             String
+  confirmacao       String        @default("PENDENTE")
+  tokenConfirmacao String        @unique @default(cuid())
+  createdAt         DateTime      @default(now())
+
+  @@index([agendaId])
+  @@index([userId])
+  @@map("participantes_reunioes")
+}
+
+model MeetingAttachment {
+  id        String        @id @default(cuid())
+  agendaId  String
+  agenda    MeetingAgenda @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  nome      String
+  url       String
+  tamanho   Int?
+  mimeType  String?
+  createdAt DateTime      @default(now())
+
+  @@index([agendaId, createdAt])
+  @@map("anexos_reunioes")
 }
 
 model Cargo {

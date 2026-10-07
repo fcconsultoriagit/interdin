@@ -22,9 +22,19 @@ export const catalogoPermissoes = [
     recursos: [{ nome: "Relatórios", slug: "relatorios" }],
   },
   {
+    nome: "Reuniões & Súmulas",
+    slug: "reunioes",
+    ordem: 3,
+    recursos: [
+      { nome: "Agendas", slug: "reunioes" },
+      { nome: "Súmulas", slug: "sumulas" },
+      { nome: "Decisões", slug: "decisoes" },
+    ],
+  },
+  {
     nome: "Configurações",
     slug: "gestao",
-    ordem: 3,
+    ordem: 4,
     recursos: [
       { nome: "Usuários", slug: "usuarios" },
       { nome: "Perfis e permissões", slug: "perfis" },

@@ -15,6 +15,9 @@ import {
   LayoutDashboard,
   ListChecks,
   ListTodo,
+  CalendarDays,
+  ClipboardList,
+  Scale,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -44,13 +47,23 @@ const navigation = [
     ],
   },
   {
+    label: "REUNIÕES & SÚMULAS",
+    items: [
+      { label: "Agendas", href: "/reunioes/agendas", resource: "reunioes", icon: CalendarDays },
+      { label: "Súmulas", href: "/reunioes/sumulas", resource: "sumulas", icon: ClipboardList },
+      { label: "Decisões", href: "/reunioes/decisoes", resource: "decisoes", icon: Scale },
+    ],
+  },
+  {
     label: "OPERAÇÕES E ANÁLISES",
+    divider: true,
     items: [
       { label: "Relatórios", href: "/relatorios", resource: "relatorios", icon: FileText },
     ],
   },
   {
     label: "CONFIGURAÇÕES",
+    divider: true,
     items: [
       { label: "Usuários", href: "/usuarios", resource: "usuarios", icon: Users },
       { label: "Perfis e permissões", href: "/perfis", resource: "perfis", icon: ShieldCheck },
@@ -67,6 +80,7 @@ const navigationScopes = [
   { value: "all", label: "Visão Completa" },
   { value: "VISÃO GERAL", label: "Visão Geral" },
   { value: "TAREFAS", label: "Tarefas" },
+  { value: "REUNIÕES & SÚMULAS", label: "Reuniões & Súmulas" },
   { value: "OPERAÇÕES E ANÁLISES", label: "Operações e Análises" },
   { value: "CONFIGURAÇÕES", label: "Configurações" },
 ] as const;
@@ -238,7 +252,7 @@ export function AppFrame({ section, breadcrumbParent = "Gestão", children }: Ap
               (navigationScope === "all" || group.label === navigationScope)
               && group.items.some(({ resource, adminOnly }) => canViewMenu(resource) && (!adminOnly || user?.permissoes.administradorTotal))
             )).map((group) => (
-              <section className="nav-group" key={group.label} aria-label={group.label}>
+              <section className={`nav-group${"divider" in group && group.divider ? " nav-group-divider" : ""}`} key={group.label} aria-label={group.label}>
                 <h2 className="nav-group-label">{group.label}</h2>
                 <div className="nav-group-items">
                   {group.items.filter(({ resource, adminOnly }) => canViewMenu(resource) && (!adminOnly || user?.permissoes.administradorTotal)).map(({ label, href, icon: Icon }) => (
