@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  Database,
   Building2,
   BriefcaseBusiness,
   ChevronDown,
@@ -56,6 +57,7 @@ const navigation = [
       { label: "Unidades", href: "/unidades", resource: "unidades", icon: Building2 },
       { label: "Cargos", href: "/cargos", resource: "cargos", icon: BriefcaseBusiness },
       { label: "Categorias", href: "/categorias", resource: "categorias", icon: Tags },
+      { label: "Banco de Dados", href: "/configuracoes/banco-de-dados", resource: "configuracoes", icon: Database, adminOnly: true },
       { label: "Configurações gerais", href: "/configuracoes", resource: "configuracoes", icon: Settings2 },
     ],
   },
@@ -234,12 +236,12 @@ export function AppFrame({ section, breadcrumbParent = "Gestão", children }: Ap
           <nav className="main-nav" aria-label="Menu principal">
             {navigation.filter((group) => (
               (navigationScope === "all" || group.label === navigationScope)
-              && group.items.some(({ resource }) => canViewMenu(resource))
+              && group.items.some(({ resource, adminOnly }) => canViewMenu(resource) && (!adminOnly || user?.permissoes.administradorTotal))
             )).map((group) => (
               <section className="nav-group" key={group.label} aria-label={group.label}>
                 <h2 className="nav-group-label">{group.label}</h2>
                 <div className="nav-group-items">
-                  {group.items.filter(({ resource }) => canViewMenu(resource)).map(({ label, href, icon: Icon }) => (
+                  {group.items.filter(({ resource, adminOnly }) => canViewMenu(resource) && (!adminOnly || user?.permissoes.administradorTotal)).map(({ label, href, icon: Icon }) => (
                     <Link
                       key={href}
                       className={`nav-item${section === label ? " active" : ""}`}

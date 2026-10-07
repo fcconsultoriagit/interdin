@@ -868,6 +868,50 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .modal-error { margin: 11px 0 0; color: #762d2a; font-size: 14px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 
+.database-settings-page { max-width: 1180px; }
+.database-status-card { display: flex; align-items: center; gap: 17px; border: 1px solid var(--line); border-radius: 14px; margin: 0 0 22px; background: #fff; padding: 20px 22px; box-shadow: 0 5px 18px #17324d0a; }
+.database-status-icon, .database-test-icon { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; border: 1px solid #d9e5ef; border-radius: 13px; background: #edf4fa; color: var(--institutional-blue); }
+.database-status-main { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.database-card-label { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .09em; }
+.database-status-main h2 { margin: 0; color: var(--navy); font-size: 20px; font-weight: 700; }
+.database-status-main p, .database-version, .database-status-error { overflow-wrap: anywhere; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.database-version { margin-top: 3px; }
+.database-status-error { color: #762d2a; }
+.database-health-badge { display: inline-flex; min-height: 29px; flex: 0 0 auto; align-items: center; gap: 7px; border: 1px solid #dce3ea; border-radius: 999px; background: #f4f6f8; padding: 4px 10px; color: #526276; font-size: 12px; font-weight: 700; }
+.database-health-badge i { width: 8px; height: 8px; border-radius: 50%; background: #8793a0; }
+.database-health-badge.healthy { border-color: #cfe2d6; background: #eff5f1; color: #285d40; }
+.database-health-badge.healthy i { background: #398056; }
+.database-health-badge.unhealthy { border-color: #e9cecd; background: #fcf5f4; color: #762d2a; }
+.database-health-badge.unhealthy i { background: #b33c35; }
+.database-test-card { padding: 0 22px 22px; }
+.database-test-header { display: flex; align-items: center; gap: 13px; border-bottom: 1px solid var(--line); margin: 0 -22px 17px; padding: 18px 22px; }
+.database-test-header h2 { margin: 0; color: var(--navy); font-size: 19px; font-weight: 700; }
+.database-test-header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.database-test-icon { width: 42px; height: 42px; }
+.database-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.database-form-field { display: grid; min-width: 0; gap: 7px; margin: 0 0 15px; color: var(--navy); font-size: 14px; font-weight: 650; }
+.database-form-wide { grid-column: 1 / -1; }
+.database-password-control { position: relative; display: block; }
+.database-password-control .form-input { padding-right: 46px; }
+.database-password-control button { position: absolute; top: 50%; right: 6px; display: grid; width: 34px; height: 34px; transform: translateY(-50%); place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--institutional-blue); cursor: pointer; }
+.database-password-control button:hover { background: #edf2f7; }
+.database-ssl-option { display: flex; align-items: center; gap: 10px; align-self: start; border: 1px solid var(--line); border-radius: 11px; margin: 0 0 15px; padding: 11px 12px; cursor: pointer; }
+.database-ssl-option input { width: 17px; height: 17px; accent-color: var(--navy); }
+.database-ssl-option span { display: grid; gap: 3px; }
+.database-ssl-option strong { color: var(--navy); font-size: 13px; }
+.database-ssl-option small { color: var(--muted); font-size: 11px; }
+.database-test-result { align-items: flex-start; margin: 2px 0 15px; }
+.database-test-result > div { min-width: 0; }
+.database-test-result strong { font-size: 14px; }
+.database-test-result p { overflow-wrap: anywhere; margin: 4px 0 0; font-size: 12px; line-height: 1.5; }
+.database-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+.database-form-actions > p { display: flex; align-items: flex-start; gap: 7px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.database-form-actions > p svg { flex: 0 0 auto; color: #285d40; }
+.database-form-actions > div { display: flex; flex: 0 0 auto; gap: 9px; }
+.database-save-disabled { opacity: .58; cursor: not-allowed; }
+.database-security-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.database-security-note svg { flex: 0 0 auto; color: var(--institutional-blue); }
+
 @media (min-width: 1600px) {
   .page-wrap { padding-right: 50px; padding-left: 50px; }
   .permissions-panel { padding-right: 26px; padding-left: 26px; }
@@ -998,6 +1042,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .footer-brand-signature { gap: 11px; }
   .footer-interdin { font-size: 16px; }
   .footer-institutional-details { align-items: flex-start; flex-direction: column; gap: 8px; font-size: 14px; }
+  .database-status-card { flex-wrap: wrap; gap: 12px; padding: 15px; }
+  .database-status-main { flex-basis: calc(100% - 62px); }
+  .database-status-main h2 { font-size: 18px; }
+  .database-health-badge { margin-left: auto; }
+  .database-test-card { padding: 0 14px 15px; }
+  .database-test-header { margin-right: -14px; margin-left: -14px; padding: 15px 14px; }
+  .database-form-grid { grid-template-columns: 1fr; }
+  .database-form-wide { grid-column: auto; }
+  .database-form-actions { align-items: stretch; flex-direction: column; }
+  .database-form-actions > div { flex-direction: column; }
+  .database-form-actions .button { justify-content: center; }
 }
 
 @media print {
