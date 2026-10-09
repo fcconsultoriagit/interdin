@@ -621,6 +621,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .meeting-delivery-feedback { align-items: flex-start; }
 .meeting-delivery-feedback > div { min-width: 0; flex: 1; }
 .meeting-delivery-feedback ul { margin: 5px 0 0; padding-left: 18px; font-size: 13px; }
+.meeting-sumula-filters { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(170px, .45fr) minmax(190px, .55fr); align-items: end; gap: 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; background: #fff; padding: 14px; }
+.meeting-sumula-filters > label, .meeting-decision-status-control { display: grid; min-width: 0; gap: 5px; color: var(--navy); font-size: 12px; font-weight: 650; }
+.meeting-sumula-code { display: inline-flex; flex: 0 0 auto; align-items: center; border: 1px solid #c9d8e8; border-radius: 999px; background: #f0f5fb; padding: 4px 9px; color: #244e79; font-size: 11px; font-weight: 750; letter-spacing: .02em; }
+.meeting-sumula-status, .meeting-decision-status { display: inline-flex; min-height: 24px; align-items: center; border: 1px solid #dbe3ea; border-radius: 999px; background: #f5f7fa; padding: 3px 9px; color: #526174; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.meeting-sumula-status-rascunho, .meeting-decision-status-pendente { border-color: #e9d9b8; background: #fbf6e9; color: #85632c; }
+.meeting-sumula-status-enviada, .meeting-decision-status-em_andamento { border-color: #c6d9ef; background: #eff5fc; color: #315b89; }
+.meeting-sumula-status-finalizada, .meeting-decision-status-concluido { border-color: #bcdcc7; background: #eef8f1; color: #287346; }
+.meeting-sumula-private-toggle, .meeting-sumula-attendance { display: inline-flex; align-items: center; gap: 8px; color: #43556b; font-size: 13px; }
+.meeting-sumula-private-toggle input, .meeting-sumula-attendance input { accent-color: var(--institutional-blue); }
+.meeting-sumula-decision { border: 1px solid #e5eaf0; border-radius: 10px; margin-top: 9px; padding: 10px; }
+.meeting-sumula-decision-heading { display: flex; align-items: center; justify-content: space-between; color: var(--navy); font-size: 13px; }
+.meeting-sumula-textarea { min-height: 86px; resize: vertical; }
+.meeting-sumula-participant { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto 32px; align-items: end; gap: 9px; border-bottom: 1px solid #edf0f3; padding: 8px 0; }
+.meeting-sumula-participant .form-label { min-width: 0; }
+.meeting-sumula-participant .form-input { margin-top: 5px; }
+.meeting-decision-description { margin: 12px 0 0; color: #40536a; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.meeting-decision-status-control { flex: 0 0 180px; }
+.meeting-decision-status-control .form-input { min-height: 36px; padding: 6px 9px; }
 .meeting-rsvp-page { display: grid; min-height: 100vh; place-items: center; background: #f3f6f9; padding: 22px; }
 .meeting-rsvp-card { width: min(100%, 620px); border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 30px; box-shadow: 0 18px 50px #17324d12; }
 .meeting-rsvp-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #e8d4ad; border-radius: 13px; background: #faf6ed; color: var(--dark-gold); }
@@ -650,6 +668,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .meeting-form-footer { justify-content: stretch; }
   .meeting-form-footer > .button { flex: 1 1 auto; }
   .meeting-rsvp-card { padding: 22px 18px; }
+  .meeting-sumula-filters { grid-template-columns: 1fr; }
+  .meeting-sumula-participant { grid-template-columns: minmax(0, 1fr) 32px; }
+  .meeting-sumula-participant > .form-label { grid-column: 1 / -1; }
+  .meeting-sumula-participant > .meeting-sumula-attendance { grid-column: 1; }
+  .meeting-decision-card { flex-wrap: wrap; }
+  .meeting-decision-status-control { flex: 1 1 100%; }
 }
 .task-modal-header { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); background: #fff; padding: 20px 25px 17px; }
 .task-modal-header > div { min-width: 0; }

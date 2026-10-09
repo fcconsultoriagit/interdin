@@ -32,6 +32,8 @@ model User {
   anexosEnviados       TaskAttachment[] @relation("TaskAttachmentUploader")
   agendasCriadas       MeetingAgenda[] @relation("MeetingAgendaCreator")
   participacoesReunioes MeetingParticipant[] @relation("MeetingParticipantUser")
+  sumulasCriadas       MeetingSumula[] @relation("MeetingSumulaAuthor")
+  participacoesSumulas MeetingSumulaParticipant[] @relation("MeetingSumulaParticipantUser")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -197,6 +199,7 @@ model MeetingAgenda {
   criador      User                @relation("MeetingAgendaCreator", fields: [criadorId], references: [id], onDelete: Restrict)
   participantes MeetingParticipant[]
   anexos       MeetingAttachment[]
+  sumulas      MeetingSumula[]
   sumulaId     String?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
@@ -237,6 +240,70 @@ model MeetingAttachment {
 
   @@index([agendaId, createdAt])
   @@map("anexos_reunioes")
+}
+
+model MeetingSumula {
+  id              String                    @id @default(cuid())
+  codigo          String                    @unique
+  titulo          String
+  dataReuniao     DateTime
+  privada         Boolean                   @default(false)
+  status          String                    @default("RASCUNHO")
+  agendaId        String?
+  agenda          MeetingAgenda?            @relation(fields: [agendaId], references: [id], onDelete: SetNull)
+  autorId         String
+  autor           User                      @relation("MeetingSumulaAuthor", fields: [autorId], references: [id], onDelete: Restrict)
+  participantes   MeetingSumulaParticipant[]
+  decisoes        MeetingDecision[]
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([dataReuniao])
+  @@index([status, dataReuniao])
+  @@index([autorId])
+  @@index([agendaId])
+  @@map("sumulas_reunioes")
+}
+
+model MeetingSumulaSequence {
+  ano         Int @id
+  ultimoNumero Int @default(0)
+
+  @@map("sequencia_sumulas_reunioes")
+}
+
+model MeetingSumulaParticipant {
+  id                 String       @id @default(cuid())
+  sumulaId           String
+  sumula             MeetingSumula @relation(fields: [sumulaId], references: [id], onDelete: Cascade)
+  userId             String?
+  usuario            User?        @relation("MeetingSumulaParticipantUser", fields: [userId], references: [id], onDelete: SetNull)
+  nome               String
+  email              String
+  presencaConfirmada Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+
+  @@index([sumulaId])
+  @@index([userId])
+  @@map("participantes_sumulas_reunioes")
+}
+
+model MeetingDecision {
+  id               String       @id @default(cuid())
+  sumulaId         String
+  sumula           MeetingSumula @relation(fields: [sumulaId], references: [id], onDelete: Cascade)
+  assunto          String
+  deliberacao      String       @db.Text
+  responsavelNome  String
+  responsavelEmail String
+  prazo            DateTime?
+  status           String       @default("PENDENTE")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([sumulaId])
+  @@index([status, prazo])
+  @@map("decisoes_reunioes")
 }
 
 model Cargo {
